@@ -31,7 +31,10 @@
   --color-brand-foreground: var(--brand-foreground);
   --color-brand-soft: var(--brand-soft);
   --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
   --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-warning-strong: var(--warning-strong);
 
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
@@ -66,7 +69,10 @@
   --accent-foreground: #d71920;
 
   --success: #16a34a;
+  --success-soft: #e7f6ec;
   --warning: #f59e0b;
+  --warning-soft: #fef3e2;
+  --warning-strong: #b45309;
 
   --destructive: #d71920;
   --border: #ececef;
