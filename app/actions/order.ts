@@ -36,7 +36,7 @@ export async function submitOrder(input: OrderInput): Promise<OrderResult> {
       customer_name: input.customerName.trim(),
       phone: input.phone.trim(),
       pickup_location: input.pickupLocation.trim(),
-      drop_off_location: input.dropOffLocation.trim(),
+      dropoff_location: input.dropOffLocation.trim(),
       item_description: input.itemDescription.trim(),
     })
 
