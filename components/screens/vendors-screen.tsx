@@ -4,7 +4,7 @@ import { Loader2, Package, Search, SlidersHorizontal, Truck, X } from "lucide-re
 import { useMemo, useState } from "react"
 import { ScreenHeader, Pill, PrimaryButton } from "@/components/app/ui"
 import { VendorCard } from "@/components/app/cards"
-import { submitOrder } from "@/app/actions/order"
+import { submitOrder as submitOrderAction } from "@/app/actions/order"
 import { categories, vendors, type CategoryId } from "@/lib/data"
 import { useApp } from "@/lib/store"
 
@@ -152,7 +152,7 @@ function ServicePanel({
       return
     }
     setIsSubmitting(true)
-    const result = await submitOrder({
+    const result = await submitOrderAction({
       customerName,
       phone,
       pickupLocation: pickup,
@@ -237,11 +237,13 @@ function Field({
   value,
   onChange,
   placeholder,
+  type = "text",
 }: {
   label: string
   value: string
   onChange: (v: string) => void
   placeholder?: string
+  type?: "text" | "tel"
 }) {
   return (
     <div>
@@ -250,6 +252,7 @@ function Field({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
+        type={type}
         className="mt-1.5 w-full rounded-2xl border border-border bg-background px-4 py-3 text-sm outline-none focus:border-brand"
       />
     </div>
