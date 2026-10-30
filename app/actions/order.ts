@@ -41,13 +41,17 @@ export async function submitOrder(input: OrderInput): Promise<OrderResult> {
     })
 
     if (error) {
-      console.error('[v0] Supabase order insert failed:', error.message)
-      return { ok: false, message: 'We could not submit your order. Please try again.' }
+      console.error('[v0] Supabase order insert failed:', error)
+      return {
+        ok: false,
+        message: `Supabase insert failed: ${error.message}`,
+      }
     }
 
     return { ok: true }
   } catch (error) {
-    console.error('[v0] Order submission failed:', error)
-    return { ok: false, message: 'Order service is temporarily unavailable. Please try again.' }
+    const message = error instanceof Error ? error.message : String(error)
+    console.error('[v0] Order submission failed:', message)
+    return { ok: false, message: `Order submission failed: ${message}` }
   }
 }
