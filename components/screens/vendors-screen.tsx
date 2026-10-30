@@ -4,7 +4,7 @@ import { Loader2, Package, Search, SlidersHorizontal, Truck, X } from "lucide-re
 import { useMemo, useState } from "react"
 import { ScreenHeader, Pill, PrimaryButton } from "@/components/app/ui"
 import { VendorCard } from "@/components/app/cards"
-import { submitOrder } from "@/app/actions/order"
+import { submitOrder as submitOrderAction } from "@/app/actions/order"
 import { categories, vendors, type CategoryId } from "@/lib/data"
 import { useApp } from "@/lib/store"
 
@@ -145,14 +145,14 @@ function ServicePanel({
   const [error, setError] = useState("")
   const [submitted, setSubmitted] = useState(false)
 
-  async function submitOrder() {
+  async function handleSubmitOrder() {
     setError("")
     if (!customerName.trim() || !phone.trim() || !pickup.trim() || !dropoff.trim() || !details.trim()) {
       setError("Please complete all fields before submitting your order.")
       return
     }
     setIsSubmitting(true)
-    const result = await submitOrder({
+    const result = await submitOrderAction({
       customerName,
       phone,
       pickupLocation: pickup,
@@ -225,7 +225,7 @@ function ServicePanel({
       </div>
 
       {error ? <p className="rounded-xl bg-destructive/10 px-3 py-2 text-xs font-medium text-destructive">{error}</p> : null}
-      <PrimaryButton onClick={submitOrder} disabled={isSubmitting}>
+      <PrimaryButton onClick={handleSubmitOrder} disabled={isSubmitting}>
         {isSubmitting ? <><Loader2 className="h-4 w-4 animate-spin" /> Submitting order...</> : "Submit order"}
       </PrimaryButton>
     </div>
@@ -237,11 +237,13 @@ function Field({
   value,
   onChange,
   placeholder,
+  type = "text",
 }: {
   label: string
   value: string
   onChange: (v: string) => void
   placeholder?: string
+  type?: "text" | "tel"
 }) {
   return (
     <div>
@@ -250,6 +252,7 @@ function Field({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
+        type={type}
         className="mt-1.5 w-full rounded-2xl border border-border bg-background px-4 py-3 text-sm outline-none focus:border-brand"
       />
     </div>
