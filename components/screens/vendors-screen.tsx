@@ -4,8 +4,8 @@ import { Loader2, Package, Search, SlidersHorizontal, Truck, X } from "lucide-re
 import { useMemo, useState } from "react"
 import { ScreenHeader, Pill, PrimaryButton } from "@/components/app/ui"
 import { VendorCard } from "@/components/app/cards"
+import { submitOrder } from "@/app/actions/order"
 import { categories, vendors, type CategoryId } from "@/lib/data"
-import { supabase } from "@/lib/supabase/client"
 import { useApp } from "@/lib/store"
 
 type SortKey = "recommended" | "rating" | "delivery" | "distance"
@@ -151,22 +151,17 @@ function ServicePanel({
       setError("Please complete all fields before submitting your order.")
       return
     }
-    if (!supabase) {
-      setError("Order service is not configured yet. Please try again shortly.")
-      return
-    }
-
     setIsSubmitting(true)
-    const { error: insertError } = await supabase.from("orders").insert({
-      customer_name: customerName.trim(),
-      phone: phone.trim(),
-      pickup_location: pickup.trim(),
-      drop_off_location: dropoff.trim(),
-      item_description: details.trim(),
+    const result = await submitOrder({
+      customerName,
+      phone,
+      pickupLocation: pickup,
+      dropOffLocation: dropoff,
+      itemDescription: details,
     })
 
-    if (insertError) {
-      setError("We could not submit your order. Please check your details and try again.")
+    if (!result.ok) {
+      setError(result.message)
       setIsSubmitting(false)
       return
     }
