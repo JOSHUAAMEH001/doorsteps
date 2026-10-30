@@ -145,7 +145,7 @@ function ServicePanel({
   const [error, setError] = useState("")
   const [submitted, setSubmitted] = useState(false)
 
-  async function submitOrder() {
+  async function handleSubmitOrder() {
     setError("")
     if (!customerName.trim() || !phone.trim() || !pickup.trim() || !dropoff.trim() || !details.trim()) {
       setError("Please complete all fields before submitting your order.")
@@ -225,7 +225,7 @@ function ServicePanel({
       </div>
 
       {error ? <p className="rounded-xl bg-destructive/10 px-3 py-2 text-xs font-medium text-destructive">{error}</p> : null}
-      <PrimaryButton onClick={submitOrder} disabled={isSubmitting}>
+      <PrimaryButton onClick={handleSubmitOrder} disabled={isSubmitting}>
         {isSubmitting ? <><Loader2 className="h-4 w-4 animate-spin" /> Submitting order...</> : "Submit order"}
       </PrimaryButton>
     </div>
