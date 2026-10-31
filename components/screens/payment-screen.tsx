@@ -27,6 +27,7 @@ export function PaymentScreen() {
     serviceFee,
     navigate,
     clearCart,
+    placeOrder,
     deliveryDetails,
   } = useApp()
   const [cardNumber, setCardNumber] = useState("")
@@ -164,6 +165,7 @@ export function PaymentScreen() {
               return
             }
             setError("")
+            placeOrder()
             clearCart()
             navigate("success")
           }}
