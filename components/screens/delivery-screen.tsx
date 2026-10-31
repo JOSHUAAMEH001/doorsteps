@@ -24,11 +24,26 @@ const savedAddresses = [
 const timeOptions = ["As soon as possible", "In 30 minutes", "In 1 hour", "Schedule"]
 
 export function DeliveryScreen() {
-  const { navigate } = useApp()
+  const { navigate, setDeliveryDetails } = useApp()
   const [addressId, setAddressId] = useState("hostel")
+  const [customAddress, setCustomAddress] = useState("")
+  const [showCustomAddress, setShowCustomAddress] = useState(false)
   const [phone, setPhone] = useState("0801 234 5678")
   const [instructions, setInstructions] = useState("")
   const [time, setTime] = useState(timeOptions[0])
+  const [error, setError] = useState("")
+
+  const selectedAddress = savedAddresses.find((address) => address.id === addressId)?.address ?? customAddress
+
+  function continueToPayment() {
+    if (!selectedAddress.trim() || phone.replace(/\D/g, "").length < 10) {
+      setError("Add a delivery address and a valid Nigerian phone number to continue.")
+      return
+    }
+    setError("")
+    setDeliveryDetails({ address: selectedAddress, phone, instructions, time })
+    navigate("payment")
+  }
 
   return (
     <div className="flex h-full flex-col">
@@ -72,12 +87,29 @@ export function DeliveryScreen() {
                 </button>
               )
             })}
-            <button
-              type="button"
-              className="w-full rounded-2xl border border-dashed border-border py-3 text-sm font-semibold text-brand"
-            >
-              + Add new address
-            </button>
+            {showCustomAddress ? (
+              <input
+                value={customAddress}
+                onChange={(event) => {
+                  setCustomAddress(event.target.value)
+                  setAddressId("custom")
+                }}
+                placeholder="e.g. Flat 4, Agbani junction"
+                className="w-full rounded-2xl border border-brand bg-background px-4 py-3 text-sm outline-none"
+                autoFocus
+              />
+            ) : (
+              <button
+                type="button"
+                onClick={() => {
+                  setShowCustomAddress(true)
+                  setAddressId("custom")
+                }}
+                className="w-full rounded-2xl border border-dashed border-border py-3 text-sm font-semibold text-brand"
+              >
+                + Add new address
+              </button>
+            )}
           </div>
         </section>
 
@@ -134,7 +166,8 @@ export function DeliveryScreen() {
       </div>
 
       <div className="border-t border-border bg-background px-5 py-4">
-        <PrimaryButton onClick={() => navigate("payment")}>
+        {error ? <p className="mb-3 rounded-xl bg-destructive/10 px-3 py-2 text-xs font-medium text-destructive">{error}</p> : null}
+        <PrimaryButton onClick={continueToPayment}>
           Continue to payment
         </PrimaryButton>
       </div>

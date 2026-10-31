@@ -1,6 +1,7 @@
 "use client"
 
 import { Banknote, Building2, Check, CreditCard } from "lucide-react"
+import { useState } from "react"
 import { ScreenHeader, PrimaryButton } from "@/components/app/ui"
 import { formatNaira } from "@/lib/data"
 import { useApp, type PaymentMethod } from "@/lib/store"
@@ -26,7 +27,12 @@ export function PaymentScreen() {
     serviceFee,
     navigate,
     clearCart,
+    deliveryDetails,
   } = useApp()
+  const [cardNumber, setCardNumber] = useState("")
+  const [expiry, setExpiry] = useState("")
+  const [cvv, setCvv] = useState("")
+  const [error, setError] = useState("")
 
   const total = cartSubtotal + deliveryFee + serviceFee
 
@@ -95,15 +101,23 @@ export function PaymentScreen() {
         {paymentMethod === "card" ? (
           <div className="animate-fade-in-up space-y-3">
             <input
+              value={cardNumber}
+              onChange={(event) => setCardNumber(event.target.value)}
+              inputMode="numeric"
               placeholder="Card number"
               className="w-full rounded-2xl border border-border bg-background px-4 py-3 text-sm outline-none focus:border-brand"
             />
             <div className="flex gap-3">
               <input
+                value={expiry}
+                onChange={(event) => setExpiry(event.target.value)}
                 placeholder="MM / YY"
                 className="w-full rounded-2xl border border-border bg-background px-4 py-3 text-sm outline-none focus:border-brand"
               />
               <input
+                value={cvv}
+                onChange={(event) => setCvv(event.target.value)}
+                inputMode="numeric"
                 placeholder="CVV"
                 className="w-full rounded-2xl border border-border bg-background px-4 py-3 text-sm outline-none focus:border-brand"
               />
@@ -134,8 +148,22 @@ export function PaymentScreen() {
       </div>
 
       <div className="border-t border-border bg-background px-5 py-4">
+        {error ? <p className="mb-3 rounded-xl bg-destructive/10 px-3 py-2 text-xs font-medium text-destructive">{error}</p> : null}
         <PrimaryButton
           onClick={() => {
+            if (!deliveryDetails) {
+              setError("Please add your delivery details before paying.")
+              return
+            }
+            if (cartSubtotal <= 0) {
+              setError("Your cart is empty. Add an item before placing an order.")
+              return
+            }
+            if (paymentMethod === "card" && (cardNumber.replace(/\D/g, "").length < 12 || !expiry.trim() || cvv.replace(/\D/g, "").length < 3)) {
+              setError("Enter valid card details to continue.")
+              return
+            }
+            setError("")
             clearCart()
             navigate("success")
           }}

@@ -63,6 +63,18 @@ interface AppState {
 
   paymentMethod: PaymentMethod
   setPaymentMethod: (m: PaymentMethod) => void
+  deliveryDetails: {
+    address: string
+    phone: string
+    instructions: string
+    time: string
+  } | null
+  setDeliveryDetails: (details: {
+    address: string
+    phone: string
+    instructions: string
+    time: string
+  }) => void
 
   userName: string
   isGuest: boolean
@@ -77,6 +89,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [history, setHistory] = useState<{ screen: Screen; params: NavParams }[]>([])
   const [cart, setCart] = useState<CartLine[]>([])
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cod")
+  const [deliveryDetails, setDeliveryDetails] = useState<AppState["deliveryDetails"]>(null)
   const [userName, setUserName] = useState("Chidera")
   const [isGuest, setIsGuest] = useState(false)
 
@@ -166,6 +179,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     serviceFee,
     paymentMethod,
     setPaymentMethod,
+    deliveryDetails,
+    setDeliveryDetails,
     userName,
     isGuest,
     signIn,
