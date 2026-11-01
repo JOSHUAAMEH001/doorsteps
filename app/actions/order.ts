@@ -14,12 +14,6 @@ export type OrderResult =
   | { ok: true; orderCode: string }
   | { ok: false; message: string }
 
-function getRequiredEnv(name: 'APP_SUPABASE_URL' | 'APP_SUPABASE_PUBLISHABLE_KEY') {
-  const value = process.env[name]
-  if (!value) throw new Error(`Missing ${name} environment variable`)
-  return value
-}
-
 export async function submitOrder(input: OrderInput): Promise<OrderResult> {
   const values = Object.values(input).map((value) => value.trim())
   if (values.some((value) => !value)) {
@@ -46,11 +40,11 @@ export async function submitOrder(input: OrderInput): Promise<OrderResult> {
       .select('order_code')
       .single()
 
-    if (error) {
-      console.error('[v0] Supabase order insert failed:', error)
+    if (error || !data) {
+      console.error('Supabase order insert failed:', error)
       return {
         ok: false,
-        message: `Supabase insert failed: ${error.message}`,
+        message: `Supabase insert failed: ${error?.message ?? 'No data returned'}`,
       }
     }
 
@@ -62,7 +56,7 @@ export async function submitOrder(input: OrderInput): Promise<OrderResult> {
     return { ok: true, orderCode: data.order_code }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
-    console.error('[v0] Order submission failed:', message)
+    console.error('Order submission failed:', message)
     return { ok: false, message: `Order submission failed: ${message}` }
   }
 }
