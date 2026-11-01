@@ -1,6 +1,5 @@
 "use client"
 
-import Image from "next/image"
 import {
   Bell,
   Bike,
@@ -13,13 +12,7 @@ import {
   Utensils,
 } from "lucide-react"
 import { VendorCard, VendorTile } from "@/components/app/cards"
-import {
-  categories,
-  formatNaira,
-  recentOrders,
-  vendors,
-  type CategoryId,
-} from "@/lib/data"
+import { categories, formatNaira, type CategoryId } from "@/lib/data"
 import { useApp } from "@/lib/store"
 
 const categoryIcons: Record<CategoryId, typeof Utensils> = {
@@ -30,8 +23,8 @@ const categoryIcons: Record<CategoryId, typeof Utensils> = {
 }
 
 export function HomeScreen() {
-  const { navigate, userName } = useApp()
-  const activeOrder = recentOrders.find((o) => o.status === "on_the_way")
+  const { navigate, userName, vendors, orders } = useApp()
+  const activeOrder = orders.find((o) => o.status === "on_the_way")
 
   return (
     <div className="pb-6">
@@ -105,7 +98,7 @@ export function HomeScreen() {
         <section className="px-5 pt-6">
           <button
             type="button"
-            onClick={() => navigate("tracking", { vendorId: activeOrder.vendorId })}
+            onClick={() => navigate("tracking", { vendorId: activeOrder.vendorId ?? undefined, orderCode: activeOrder.id })}
             className="flex w-full items-center gap-3 rounded-3xl border border-brand/20 bg-brand-soft p-4 text-left"
           >
             <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-brand text-brand-foreground">
@@ -113,7 +106,7 @@ export function HomeScreen() {
             </span>
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-bold text-foreground">
-                Order on the way • {activeOrder.eta}
+                Order on the way
               </p>
               <p className="truncate text-xs text-muted-foreground">
                 {activeOrder.vendorName} • {activeOrder.id}
@@ -124,30 +117,6 @@ export function HomeScreen() {
         </section>
       ) : null}
 
-      {/* Promo banner */}
-      <section className="px-5 pt-6">
-        <div className="relative overflow-hidden rounded-3xl bg-foreground p-5 text-background">
-          <div className="relative z-10 max-w-[62%]">
-            <span className="rounded-full bg-brand px-2.5 py-1 text-[11px] font-bold text-brand-foreground">
-              NEW USER
-            </span>
-            <h3 className="mt-3 text-lg font-extrabold leading-tight">
-              Get {formatNaira(1000)} off your first order
-            </h3>
-            <p className="mt-1 text-xs text-background/70">
-              Use code AGBANI10 at checkout.
-            </p>
-          </div>
-          <Image
-            src="/food-jollof.png"
-            alt=""
-            width={130}
-            height={130}
-            className="absolute -bottom-3 -right-3 h-32 w-32 rounded-full object-cover"
-          />
-        </div>
-      </section>
-
       {/* Popular vendors */}
       <section className="pt-7">
         <div className="px-5">
@@ -157,6 +126,7 @@ export function HomeScreen() {
           />
         </div>
         <div className="no-scrollbar flex gap-3 overflow-x-auto px-5 pt-3">
+          {vendors.length === 0 ? <p className="px-1 py-4 text-sm text-muted-foreground">No vendors yet.</p> : null}
           {vendors.slice(0, 4).map((v) => (
             <VendorTile key={v.id} vendor={v} />
           ))}
@@ -170,6 +140,7 @@ export function HomeScreen() {
           onSeeAll={() => navigate("vendors", { category: "food" })}
         />
         <div className="mt-3 space-y-4">
+          {vendors.filter((v) => v.category === "food").length === 0 ? <p className="text-sm text-muted-foreground">No vendors yet.</p> : null}
           {vendors
             .filter((v) => v.category === "food")
             .slice(0, 3)
@@ -186,13 +157,13 @@ export function HomeScreen() {
           onSeeAll={() => navigate("orders")}
         />
         <div className="mt-3 space-y-3">
-          {recentOrders.slice(0, 2).map((o) => (
+          {orders.slice(0, 2).map((o) => (
             <button
               key={o.id}
               type="button"
               onClick={() =>
                 o.status === "on_the_way"
-                  ? navigate("tracking", { vendorId: o.vendorId })
+                  ? navigate("tracking", { vendorId: o.vendorId ?? undefined, orderCode: o.id })
                   : navigate("orders")
               }
               className="flex w-full items-center gap-3 rounded-3xl border border-border bg-card p-3.5 text-left"

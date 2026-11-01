@@ -8,7 +8,9 @@ import {
   useState,
   type ReactNode,
 } from "react"
-import type { CategoryId, Product } from "@/lib/data"
+import useSWR from "swr"
+import { getMyOrders, getVendors } from "@/app/actions/catalog"
+import type { CategoryId, Order, Product, Vendor } from "@/lib/data"
 
 export type Screen =
   | "splash"
@@ -33,6 +35,7 @@ export interface NavParams {
   vendorId?: string
   productId?: string
   category?: CategoryId
+  orderCode?: string
 }
 
 export interface CartLine {
@@ -50,13 +53,15 @@ interface AppState {
   back: () => void
   canGoBack: boolean
 
+  vendors: Vendor[]
+  orders: Order[]
   cart: CartLine[]
   addToCart: (product: Product, qty: number, note?: string) => void
   updateQty: (productId: string, qty: number) => void
   removeFromCart: (productId: string) => void
   clearCart: () => void
   orderId: string | null
-  placeOrder: () => void
+  placeOrder: (orderCode: string) => void
   cartCount: number
   cartSubtotal: number
 
@@ -95,6 +100,36 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [orderId, setOrderId] = useState<string | null>(null)
   const [userName, setUserName] = useState("Chidera")
   const [isGuest, setIsGuest] = useState(false)
+  const { data: vendorRows = [] } = useSWR("vendors", getVendors)
+  const { data: orderRows = [] } = useSWR("my-orders", getMyOrders)
+
+  const vendors = useMemo<Vendor[]>(
+    () => vendorRows.map((vendor) => ({
+      id: vendor.id,
+      name: vendor.name,
+      category: vendor.category as CategoryId,
+      image: vendor.image_url ?? "",
+      rating: vendor.rating,
+      deliveryMins: vendor.delivery_minutes,
+      deliveryFee: null,
+      isOpen: vendor.is_active,
+    })),
+    [vendorRows],
+  )
+  const orders = useMemo<Order[]>(
+    () => orderRows.map((order) => ({
+      id: order.order_code,
+      vendorId: order.vendor_id,
+      vendorName: Array.isArray(order.vendors) ? (order.vendors[0] as { name: string } | undefined)?.name ?? "Unknown vendor" : (order.vendors as { name: string } | null)?.name ?? "Unknown vendor",
+      items: (order.order_items ?? []).map((item) => ({ name: item.item_name, qty: item.quantity, price: item.unit_price })),
+      total: order.total,
+      status: order.status as Order["status"],
+      placedAt: new Date(order.created_at).toLocaleString("en-NG"),
+    })),
+    [orderRows],
+  )
+
+  const canGoBack = history.length > 0
 
   const navigate = useCallback(
     (next: Screen, nextParams: NavParams = {}) => {
@@ -148,8 +183,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const clearCart = useCallback(() => setCart([]), [])
 
-  const placeOrder = useCallback(() => {
-    setOrderId(`DL-${String(Date.now()).slice(-6)}`)
+  const placeOrder = useCallback((orderCode: string) => {
+    setOrderId(orderCode)
   }, [])
 
   const signIn = useCallback((name: string, guest = false) => {
@@ -166,15 +201,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [cart],
   )
 
-  const deliveryFee = cart.length ? 600 : 0
-  const serviceFee = cart.length ? 200 : 0
+  const deliveryFee = 0
+  const serviceFee = 0
 
   const value: AppState = {
     screen,
     params,
     navigate,
     back,
-    canGoBack: history.length > 0,
+    canGoBack,
+    vendors,
+    orders,
     cart,
     addToCart,
     updateQty,

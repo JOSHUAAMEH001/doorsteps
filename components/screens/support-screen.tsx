@@ -12,26 +12,7 @@ interface Msg {
   time: string
 }
 
-const initial: Msg[] = [
-  {
-    id: 1,
-    from: "agent",
-    text: "Hi there! I'm Ada from Doorsteps support. How can I help you today?",
-    time: "1:02 PM",
-  },
-  {
-    id: 2,
-    from: "me",
-    text: "Hello, I want to check on my order DL-4821.",
-    time: "1:03 PM",
-  },
-  {
-    id: 3,
-    from: "agent",
-    text: "Sure! Your order is on the way and should arrive in about 15 minutes. Emeka is your rider.",
-    time: "1:03 PM",
-  },
-]
+const initial: Msg[] = []
 
 const quickReplies = [
   "Where is my order?",

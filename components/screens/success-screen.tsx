@@ -5,7 +5,7 @@ import { PrimaryButton } from "@/components/app/ui"
 import { useApp } from "@/lib/store"
 
 export function SuccessScreen() {
-  const { navigate, orderId } = useApp()
+  const { navigate, params } = useApp()
 
   return (
     <div className="flex h-full flex-col items-center justify-center px-8 text-center">
@@ -22,7 +22,7 @@ export function SuccessScreen() {
       </h1>
       <p className="mt-2 max-w-[280px] text-pretty text-sm leading-relaxed text-muted-foreground">
         Your order{" "}
-        <span className="font-bold text-foreground">{orderId ?? "DL-NEW"}</span> has been sent to
+        <span className="font-bold text-foreground">{params.orderCode}</span> has been sent to
         the vendor. We&apos;ll notify you as it&apos;s prepared and dispatched.
       </p>
 
@@ -38,7 +38,7 @@ export function SuccessScreen() {
       </div>
 
       <div className="mt-8 w-full max-w-xs space-y-3">
-        <PrimaryButton onClick={() => navigate("tracking", { vendorId: "mama-nkechi" })}>
+        <PrimaryButton onClick={() => navigate("tracking", { vendorId: params.vendorId })}>
           Track your order
         </PrimaryButton>
         <PrimaryButton variant="outline" onClick={() => navigate("home")}>

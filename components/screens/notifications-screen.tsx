@@ -3,7 +3,9 @@
 import { Package, Tag, Info } from "lucide-react"
 import { useApp } from "@/lib/store"
 import { ScreenHeader } from "@/components/app/ui"
-import { notifications, type AppNotification } from "@/lib/data"
+import type { AppNotification } from "@/lib/data"
+
+const notifications: AppNotification[] = []
 import { cn } from "@/lib/utils"
 
 const iconFor = {
@@ -32,6 +34,7 @@ export function NotificationsScreen() {
         }
       />
       <div className="divide-y divide-border">
+        {notifications.length === 0 ? <p className="px-5 py-16 text-center text-sm text-muted-foreground">No notifications yet.</p> : null}
         {notifications.map((n: AppNotification) => {
           const Icon = iconFor[n.type]
           return (

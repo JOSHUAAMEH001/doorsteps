@@ -9,7 +9,7 @@ import { orderStatusSteps } from "@/lib/data"
 import { cn } from "@/lib/utils"
 
 export function TrackingScreen() {
-  const { navigate } = useApp()
+  const { navigate, params } = useApp()
   // active step index across the confirmed -> preparing -> on_the_way -> delivered flow
   const [step, setStep] = useState(1)
   const [eta, setEta] = useState(15)
@@ -31,7 +31,7 @@ export function TrackingScreen() {
 
   return (
     <div className="flex min-h-full flex-col bg-background">
-      <ScreenHeader title="Track order" subtitle="Order DL-4821" />
+      <ScreenHeader title="Track order" subtitle={`Order ${params.orderCode ?? ""}`} />
 
       {/* Map */}
       <div className="relative h-56 w-full overflow-hidden">

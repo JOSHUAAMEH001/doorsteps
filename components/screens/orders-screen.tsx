@@ -4,7 +4,7 @@ import { useState } from "react"
 import { ChevronRight, Package } from "lucide-react"
 import { useApp } from "@/lib/store"
 import { ScreenHeader, Pill, PrimaryButton } from "@/components/app/ui"
-import { recentOrders, formatNaira, type OrderStatus } from "@/lib/data"
+import { formatNaira, type OrderStatus } from "@/lib/data"
 import { cn } from "@/lib/utils"
 
 const statusLabel: Record<OrderStatus, string> = {
@@ -24,13 +24,13 @@ const statusStyle: Record<OrderStatus, string> = {
 type Tab = "active" | "completed"
 
 export function OrdersScreen() {
-  const { navigate } = useApp()
+  const { navigate, orders } = useApp()
   const [tab, setTab] = useState<Tab>("active")
 
-  const active = recentOrders.filter(
+  const active = orders.filter(
     (o) => o.status === "preparing" || o.status === "on_the_way",
   )
-  const completed = recentOrders.filter(
+  const completed = orders.filter(
     (o) => o.status === "delivered" || o.status === "cancelled",
   )
   const list = tab === "active" ? active : completed
@@ -69,8 +69,8 @@ export function OrdersScreen() {
               key={o.id}
               onClick={() =>
                 o.status === "on_the_way" || o.status === "preparing"
-                  ? navigate("tracking")
-                  : navigate("vendor", { vendorId: o.vendorId })
+                  ? navigate("tracking", { orderCode: o.id, vendorId: o.vendorId ?? undefined })
+                  : navigate("vendor", { vendorId: o.vendorId ?? undefined })
               }
               className="w-full rounded-3xl border border-border bg-card p-4 text-left shadow-sm transition-transform active:scale-[0.99]"
             >

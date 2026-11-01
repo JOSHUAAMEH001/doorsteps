@@ -3,14 +3,31 @@
 import Image from "next/image"
 import { ArrowLeft, Minus, Plus, Star } from "lucide-react"
 import { useState } from "react"
-import { formatNaira, products } from "@/lib/data"
+import useSWR from "swr"
+import { getMenuItem } from "@/app/actions/catalog"
+import { formatNaira, type Product } from "@/lib/data"
 import { useApp } from "@/lib/store"
 
 export function ProductScreen() {
   const { params, back, navigate, addToCart } = useApp()
-  const product = products.find((p) => p.id === params.productId) ?? products[0]
+  const { data: row, isLoading } = useSWR(
+    params.productId ? ["menu-item", params.productId] : null,
+    ([, id]) => getMenuItem(id),
+  )
+  const product: Product | null = row ? {
+    id: row.id,
+    vendorId: row.vendor_id,
+    name: row.name,
+    description: row.description ?? "",
+    price: row.price,
+    image: row.image_url ?? "",
+    group: "Menu",
+  } : null
   const [qty, setQty] = useState(1)
   const [note, setNote] = useState("")
+
+  if (isLoading) return <div className="p-6 text-sm text-muted-foreground">Loading item...</div>
+  if (!product) return <div className="p-6 text-sm text-muted-foreground">Menu item not found.</div>
 
   const total = product.price * qty
 
