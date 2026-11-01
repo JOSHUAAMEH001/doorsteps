@@ -4,8 +4,8 @@ import { NextResponse, type NextRequest } from "next/server"
 export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({ request })
   const supabase = createServerClient(
-    process.env.DOORSTEPS_SUPABASE_URL!,
-    process.env.DOORSTEPS_SUPABASE_PUBLISHABLE_KEY!,
+    process.env.APP_SUPABASE_URL!,
+    process.env.APP_SUPABASE_PUBLISHABLE_KEY!,
     {
       cookies: {
         getAll() {
