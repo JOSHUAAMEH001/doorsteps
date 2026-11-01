@@ -48,6 +48,11 @@ export async function submitOrder(input: OrderInput): Promise<OrderResult> {
       }
     }
 
+    if (!data?.order_code) {
+      console.error('[v0] Supabase order insert returned no order code')
+      return { ok: false, message: 'Order was saved, but no order code was returned.' }
+    }
+
     return { ok: true, orderCode: data.order_code }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
