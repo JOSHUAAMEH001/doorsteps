@@ -144,6 +144,7 @@ function ServicePanel({
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState("")
   const [submitted, setSubmitted] = useState(false)
+  const [orderCode, setOrderCode] = useState<string | null>(null)
 
   async function handleSubmitOrder() {
     setError("")
@@ -166,6 +167,7 @@ function ServicePanel({
       return
     }
 
+    setOrderCode(result.orderCode)
     setSubmitted(true)
     setIsSubmitting(false)
   }
@@ -179,7 +181,8 @@ function ServicePanel({
           </div>
           <h2 className="mt-4 text-lg font-extrabold text-foreground">Order submitted</h2>
           <p className="mt-2 text-sm leading-6 text-muted-foreground">
-            Thanks, {customerName.split(" ")[0]}. Our team will contact you shortly to confirm your delivery.
+            Thanks, {customerName.split(" ")[0]}. Your order code is{" "}
+            <span className="font-bold text-foreground">{orderCode}</span>. Our team will contact you shortly to confirm your delivery.
           </p>
         </div>
         <PrimaryButton onClick={onStart}>Back to home</PrimaryButton>

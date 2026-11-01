@@ -11,7 +11,7 @@ export type OrderInput = {
 }
 
 export type OrderResult =
-  | { ok: true }
+  | { ok: true; orderCode: string }
   | { ok: false; message: string }
 
 function getRequiredEnv(name: 'APP_SUPABASE_URL' | 'APP_SUPABASE_PUBLISHABLE_KEY') {
@@ -33,14 +33,18 @@ export async function submitOrder(input: OrderInput): Promise<OrderResult> {
       return { ok: false, message: 'Please log in before placing an order.' }
     }
 
-    const { error } = await supabase.from('orders').insert({
-      user_id: user.id,
-      customer_name: input.customerName.trim(),
-      phone: input.phone.trim(),
-      pickup_location: input.pickupLocation.trim(),
-      dropoff_location: input.dropOffLocation.trim(),
-      item_description: input.itemDescription.trim(),
-    })
+    const { data, error } = await supabase
+      .from('orders')
+      .insert({
+        user_id: user.id,
+        customer_name: input.customerName.trim(),
+        phone: input.phone.trim(),
+        pickup_location: input.pickupLocation.trim(),
+        dropoff_location: input.dropOffLocation.trim(),
+        item_description: input.itemDescription.trim(),
+      })
+      .select('order_code')
+      .single()
 
     if (error) {
       console.error('[v0] Supabase order insert failed:', error)
@@ -50,7 +54,12 @@ export async function submitOrder(input: OrderInput): Promise<OrderResult> {
       }
     }
 
-    return { ok: true }
+    if (!data?.order_code) {
+      console.error('[v0] Supabase order insert returned no order code')
+      return { ok: false, message: 'Order was saved, but no order code was returned.' }
+    }
+
+    return { ok: true, orderCode: data.order_code }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
     console.error('[v0] Order submission failed:', message)
