@@ -55,6 +55,8 @@ interface AppState {
   updateQty: (productId: string, qty: number) => void
   removeFromCart: (productId: string) => void
   clearCart: () => void
+  orderId: string | null
+  placeOrder: () => void
   cartCount: number
   cartSubtotal: number
 
@@ -63,6 +65,18 @@ interface AppState {
 
   paymentMethod: PaymentMethod
   setPaymentMethod: (m: PaymentMethod) => void
+  deliveryDetails: {
+    address: string
+    phone: string
+    instructions: string
+    time: string
+  } | null
+  setDeliveryDetails: (details: {
+    address: string
+    phone: string
+    instructions: string
+    time: string
+  }) => void
 
   userName: string
   isGuest: boolean
@@ -77,6 +91,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [history, setHistory] = useState<{ screen: Screen; params: NavParams }[]>([])
   const [cart, setCart] = useState<CartLine[]>([])
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cod")
+  const [deliveryDetails, setDeliveryDetails] = useState<AppState["deliveryDetails"]>(null)
+  const [orderId, setOrderId] = useState<string | null>(null)
   const [userName, setUserName] = useState("Chidera")
   const [isGuest, setIsGuest] = useState(false)
 
@@ -132,6 +148,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const clearCart = useCallback(() => setCart([]), [])
 
+  const placeOrder = useCallback(() => {
+    setOrderId(`DL-${String(Date.now()).slice(-6)}`)
+  }, [])
+
   const signIn = useCallback((name: string, guest = false) => {
     setUserName(name)
     setIsGuest(guest)
@@ -160,12 +180,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
     updateQty,
     removeFromCart,
     clearCart,
+    orderId,
+    placeOrder,
     cartCount,
     cartSubtotal,
     deliveryFee,
     serviceFee,
     paymentMethod,
     setPaymentMethod,
+    deliveryDetails,
+    setDeliveryDetails,
     userName,
     isGuest,
     signIn,

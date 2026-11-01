@@ -15,6 +15,7 @@ export function CartScreen() {
     deliveryFee,
     serviceFee,
     navigate,
+    isGuest,
   } = useApp()
 
   const total = cartSubtotal + deliveryFee + serviceFee
@@ -137,7 +138,7 @@ export function CartScreen() {
       <div className="border-t border-border bg-background px-5 py-4">
         <button
           type="button"
-          onClick={() => navigate("delivery")}
+          onClick={() => navigate(isGuest ? "auth" : "delivery")}
           className="flex w-full items-center justify-between rounded-2xl bg-brand px-5 py-4 text-sm font-bold text-brand-foreground transition-transform active:scale-[0.98]"
         >
           <span>Proceed to checkout</span>

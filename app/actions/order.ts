@@ -1,6 +1,6 @@
 'use server'
 
-import { createClient } from '@supabase/supabase-js'
+import { createClient } from '@/lib/supabase/server'
 
 export type OrderInput = {
   customerName: string
@@ -27,12 +27,14 @@ export async function submitOrder(input: OrderInput): Promise<OrderResult> {
   }
 
   try {
-    const supabase = createClient(
-      getRequiredEnv('SUPABASE_URL'),
-      getRequiredEnv('SUPABASE_PUBLISHABLE_KEY'),
-    )
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      return { ok: false, message: 'Please log in before placing an order.' }
+    }
 
     const { error } = await supabase.from('orders').insert({
+      user_id: user.id,
       customer_name: input.customerName.trim(),
       phone: input.phone.trim(),
       pickup_location: input.pickupLocation.trim(),
