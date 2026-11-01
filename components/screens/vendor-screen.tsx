@@ -3,17 +3,35 @@
 import Image from "next/image"
 import { ArrowLeft, Bike, Clock, Heart, MapPin, Plus, Star } from "lucide-react"
 import { useMemo, useState } from "react"
-import { formatNaira, products, vendors } from "@/lib/data"
+import useSWR from "swr"
+import { getMenuItems } from "@/app/actions/catalog"
+import { formatNaira, type Product } from "@/lib/data"
 import { useApp } from "@/lib/store"
 import { cn } from "@/lib/utils"
 
 export function VendorScreen() {
-  const { params, back, navigate, addToCart } = useApp()
-  const vendor = vendors.find((v) => v.id === params.vendorId) ?? vendors[0]
-  const items = useMemo(
-    () => products.filter((p) => p.vendorId === vendor.id),
-    [vendor.id],
+  const { params, back, navigate, addToCart, vendors } = useApp()
+  const vendor = vendors.find((v) => v.id === params.vendorId)
+  const { data: menuRows = [], isLoading } = useSWR(
+    vendor ? ["menu-items", vendor.id] : null,
+    ([, vendorId]) => getMenuItems(vendorId),
   )
+  const items = useMemo<Product[]>(
+    () => menuRows.map((item) => ({
+      id: item.id,
+      vendorId: item.vendor_id,
+      name: item.name,
+      description: item.description ?? "",
+      price: item.price,
+      image: item.image_url ?? "",
+      group: "Menu",
+    })),
+    [menuRows],
+  )
+
+  if (!vendor) {
+    return <div className="p-6 text-sm text-muted-foreground">Vendor not found.</div>
+  }
   const groups = useMemo(() => {
     const map = new Map<string, typeof items>()
     for (const p of items) {
@@ -29,7 +47,7 @@ export function VendorScreen() {
       {/* Banner */}
       <div className="relative h-52 w-full">
         <Image
-          src={vendor.banner || "/placeholder.svg"}
+          src={vendor.image || "/placeholder.svg"}
           alt={vendor.name}
           fill
           className="object-cover"
@@ -63,7 +81,7 @@ export function VendorScreen() {
             <h1 className="text-xl font-extrabold tracking-tight text-foreground">
               {vendor.name}
             </h1>
-            <p className="mt-0.5 text-sm text-muted-foreground">{vendor.type}</p>
+            <p className="mt-0.5 text-sm text-muted-foreground">{vendor.category}</p>
           </div>
           <span
             className={cn(
@@ -76,21 +94,12 @@ export function VendorScreen() {
         </div>
 
         <div className="mt-4 grid grid-cols-3 gap-2">
-          <InfoStat icon={Star} label={`${vendor.rating} (${vendor.reviews})`} sub="Rating" />
-          <InfoStat icon={Clock} label={`${vendor.deliveryMins} min`} sub="Delivery" />
-          <InfoStat icon={Bike} label={formatNaira(vendor.deliveryFee)} sub="Fee" />
+          <InfoStat icon={Star} label={vendor.rating === null ? "No rating" : String(vendor.rating)} sub="Rating" />
+          <InfoStat icon={Clock} label={vendor.deliveryMins === null ? "Not listed" : `${vendor.deliveryMins} min`} sub="Delivery" />
+          <InfoStat icon={Bike} label="Delivery" sub="Fee shown at checkout" />
         </div>
 
-        <div className="mt-3 flex items-center gap-1.5 text-xs text-muted-foreground">
-          <MapPin className="h-3.5 w-3.5" />
-          {vendor.distanceKm} km away • Agbani, Enugu
-        </div>
 
-        {vendor.promo ? (
-          <div className="mt-4 rounded-2xl bg-brand-soft px-4 py-3 text-sm font-semibold text-brand">
-            {vendor.promo}
-          </div>
-        ) : null}
       </div>
 
       {/* Category tabs */}
@@ -119,6 +128,8 @@ export function VendorScreen() {
 
       {/* Products */}
       <div className="px-5 pt-5">
+        {isLoading ? <p className="py-12 text-center text-sm text-muted-foreground">Loading menu...</p> : null}
+        {!isLoading && groups.length === 0 ? <p className="py-12 text-center text-sm text-muted-foreground">No menu items yet.</p> : null}
         {groups.map(([group, groupItems]) => (
           <section key={group} id={`group-${group}`} className="scroll-mt-32 pb-6">
             <h2 className="mb-3 text-base font-extrabold text-foreground">{group}</h2>

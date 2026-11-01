@@ -2,61 +2,80 @@
 
 import { createClient } from '@/lib/supabase/server'
 
-export type OrderInput = {
+export type CheckoutItem = {
+  menuItemId: string
+  itemName: string
+  unitPrice: number
+  quantity: number
+}
+
+export type CheckoutInput = {
   customerName: string
   phone: string
   pickupLocation: string
-  dropOffLocation: string
+  dropoffLocation: string
   itemDescription: string
+  vendorId: string
+  subtotal: number
+  deliveryFee: number
+  total: number
+  paymentMethod: 'cash' | 'transfer' | 'card'
+  items: CheckoutItem[]
 }
 
 export type OrderResult =
   | { ok: true; orderCode: string }
   | { ok: false; message: string }
 
-export async function submitOrder(input: OrderInput): Promise<OrderResult> {
-  const values = Object.values(input).map((value) => value.trim())
-  if (values.some((value) => !value)) {
-    return { ok: false, message: 'Please complete all fields before submitting your order.' }
+export async function submitOrder(_input: unknown): Promise<OrderResult> {
+  return { ok: false, message: 'Use the cart checkout to place an order.' }
+}
+
+export async function submitCheckout(input: CheckoutInput): Promise<OrderResult> {
+  if (!input.items.length || input.subtotal <= 0 || input.total <= 0) {
+    return { ok: false, message: 'Your cart is empty. Add an item before placing an order.' }
   }
 
   try {
     const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) {
-      return { ok: false, message: 'Please log in before placing an order.' }
-    }
-
-    const { data, error } = await supabase
+    const { data: order, error: orderError } = await supabase
       .from('orders')
       .insert({
-        user_id: user.id,
         customer_name: input.customerName.trim(),
         phone: input.phone.trim(),
         pickup_location: input.pickupLocation.trim(),
-        dropoff_location: input.dropOffLocation.trim(),
+        dropoff_location: input.dropoffLocation.trim(),
         item_description: input.itemDescription.trim(),
+        vendor_id: input.vendorId,
+        subtotal: input.subtotal,
+        delivery_fee: input.deliveryFee,
+        total: input.total,
+        payment_method: input.paymentMethod,
       })
-      .select('order_code')
+      .select('id, order_code')
       .single()
 
-    if (error || !data) {
-      console.error('Supabase order insert failed:', error)
-      return {
-        ok: false,
-        message: `Supabase insert failed: ${error?.message ?? 'No data returned'}`,
-      }
+    if (orderError || !order) {
+      return { ok: false, message: orderError?.message ?? 'Order could not be created.' }
     }
 
-    if (!data?.order_code) {
-      console.error('[v0] Supabase order insert returned no order code')
-      return { ok: false, message: 'Order was saved, but no order code was returned.' }
+    const { error: itemsError } = await supabase.from('order_items').insert(
+      input.items.map((item) => ({
+        order_id: order.id,
+        menu_item_id: item.menuItemId,
+        item_name: item.itemName.trim(),
+        unit_price: item.unitPrice,
+        quantity: item.quantity,
+      })),
+    )
+
+    if (itemsError) {
+      await supabase.from('orders').delete().eq('id', order.id)
+      return { ok: false, message: itemsError.message }
     }
 
-    return { ok: true, orderCode: data.order_code }
+    return { ok: true, orderCode: order.order_code }
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error)
-    console.error('Order submission failed:', message)
-    return { ok: false, message: `Order submission failed: ${message}` }
+    return { ok: false, message: error instanceof Error ? error.message : String(error) }
   }
 }

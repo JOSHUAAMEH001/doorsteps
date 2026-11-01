@@ -2,6 +2,7 @@
 
 import { Banknote, Building2, Check, CreditCard } from "lucide-react"
 import { useState } from "react"
+import { submitCheckout } from "@/app/actions/order"
 import { ScreenHeader, PrimaryButton } from "@/components/app/ui"
 import { formatNaira } from "@/lib/data"
 import { useApp, type PaymentMethod } from "@/lib/store"
@@ -29,6 +30,9 @@ export function PaymentScreen() {
     clearCart,
     placeOrder,
     deliveryDetails,
+    cart,
+    userName,
+    vendors,
   } = useApp()
   const [cardNumber, setCardNumber] = useState("")
   const [expiry, setExpiry] = useState("")
@@ -151,12 +155,12 @@ export function PaymentScreen() {
       <div className="border-t border-border bg-background px-5 py-4">
         {error ? <p className="mb-3 rounded-xl bg-destructive/10 px-3 py-2 text-xs font-medium text-destructive">{error}</p> : null}
         <PrimaryButton
-          onClick={() => {
+          onClick={async () => {
             if (!deliveryDetails) {
               setError("Please add your delivery details before paying.")
               return
             }
-            if (cartSubtotal <= 0) {
+            if (cartSubtotal <= 0 || !cart.length) {
               setError("Your cart is empty. Add an item before placing an order.")
               return
             }
@@ -164,10 +168,42 @@ export function PaymentScreen() {
               setError("Enter valid card details to continue.")
               return
             }
+            const vendorId = cart[0].product.vendorId
+            const vendor = vendors.find((item) => item.id === vendorId)
+            if (!vendor) {
+              setError("This vendor is no longer available.")
+              return
+            }
+            if (cart.some((line) => line.product.vendorId !== vendorId)) {
+              setError("Please place separate orders for items from different vendors.")
+              return
+            }
             setError("")
-            placeOrder()
+            const result = await submitCheckout({
+              customerName: userName,
+              phone: deliveryDetails.phone,
+              pickupLocation: vendor.name,
+              dropoffLocation: deliveryDetails.address,
+              itemDescription: cart.map((line) => `${line.qty}x ${line.product.name}`).join(", "),
+              vendorId,
+              subtotal: cartSubtotal,
+              deliveryFee,
+              total,
+              paymentMethod: paymentMethod === "cod" ? "cash" : paymentMethod,
+              items: cart.map((line) => ({
+                menuItemId: line.product.id,
+                itemName: line.product.name,
+                unitPrice: line.product.price,
+                quantity: line.qty,
+              })),
+            })
+            if (!result.ok) {
+              setError(result.message)
+              return
+            }
+            placeOrder(result.orderCode)
             clearCart()
-            navigate("success")
+            navigate("success", { orderCode: result.orderCode, vendorId })
           }}
         >
           {paymentMethod === "cod"
