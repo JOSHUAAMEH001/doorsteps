@@ -14,7 +14,7 @@ export type OrderResult =
   | { ok: true }
   | { ok: false; message: string }
 
-function getRequiredEnv(name: 'DOORSTEPS_SUPABASE_URL' | 'DOORSTEPS_SUPABASE_PUBLISHABLE_KEY') {
+function getRequiredEnv(name: 'APP_SUPABASE_URL' | 'APP_SUPABASE_PUBLISHABLE_KEY') {
   const value = process.env[name]
   if (!value) throw new Error(`Missing ${name} environment variable`)
   return value
