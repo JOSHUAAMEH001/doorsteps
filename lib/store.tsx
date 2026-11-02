@@ -29,6 +29,7 @@ export type Screen =
   | "vendorDashboard"
   | "riderDashboard"
   | "adminDashboard"
+  | "adminOrders"
   | "notifications"
   | "profile"
   | "support"
