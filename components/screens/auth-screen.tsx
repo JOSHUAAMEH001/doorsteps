@@ -87,6 +87,11 @@ export function AuthScreen() {
               className="mt-2 w-full rounded-2xl border border-border bg-background px-4 py-3 text-sm font-medium outline-none focus:border-brand"
             />
           </label>
+          {mode === "login" ? (
+            <a href="/forgot-password" className="block text-right text-xs font-semibold text-brand hover:underline">
+              Forgot password?
+            </a>
+          ) : null}
           {message ? <p className="rounded-2xl bg-brand-soft px-4 py-3 text-xs font-semibold text-brand">{message}</p> : null}
         </div>
 
