@@ -3,7 +3,7 @@
 import useSWR from 'swr'
 import { useMemo, useState } from 'react'
 import { Check, ChevronDown, CircleX, Package, Truck } from 'lucide-react'
-import { getAdminData, getCurrentProfile, getRiderEarnings, getRiderOrders, getVendorOrders, acceptRiderOrder, assignRider, updateOrderStatus, type Role } from '@/app/actions/roles'
+import { getAdminData, getCurrentProfile, getRiderEarnings, getRiderOrders, getVendorOrders, acceptRiderOrder, assignRider, declineRiderOrder, updateOrderStatus, updateRiderOrderStatus, type Role } from '@/app/actions/roles'
 import { formatNaira } from '@/lib/data'
 import { useApp } from '@/lib/store'
 import { PrimaryButton, ScreenHeader } from '@/components/app/ui'
@@ -41,15 +41,27 @@ function VendorDashboard() {
 
 function RiderDashboard() {
   const [tab, setTab] = useState<'available' | 'mine' | 'earnings'>('available')
+  const [actionError, setActionError] = useState<string | null>(null)
+  const [busy, setBusy] = useState<string | null>(null)
   const { data, mutate } = useSWR('role-rider-orders', getRiderOrders)
   const { data: earnings } = useSWR('role-rider-earnings', getRiderEarnings)
   const orders: any[] = data?.data ?? []
   const available = orders.filter((order) => order.status === 'confirmed' && !order.rider_id)
   const mine = orders.filter((order) => Boolean(order.rider_id))
-  async function accept(id: string) { await acceptRiderOrder(id); await mutate() }
-  async function advance(order: any) { const next = order.status === 'assigned' ? 'picked_up' : 'delivered'; await updateOrderStatus(order.id, next); await mutate() }
-  return <div className="pb-8"><ScreenHeader title="Rider dashboard" subtitle="Deliver orders and track earnings"/><div className="flex gap-2 overflow-x-auto px-5 pt-4">{(['available','mine','earnings'] as const).map((item) => <button key={item} onClick={() => setTab(item)} className={`rounded-full px-4 py-2 text-xs font-bold capitalize ${tab === item ? 'bg-brand text-brand-foreground' : 'bg-secondary text-muted-foreground'}`}>{item === 'mine' ? 'My orders' : item}</button>)}</div><div className="space-y-3 px-5 pt-5"><SafeMessage error={data?.error}/>{tab === 'earnings' ? <Earnings rows={earnings?.data as any[] ?? []}/> : (tab === 'available' ? available : mine).map((order) => <OrderCard key={order.id} order={order} actions={tab === 'available' ? <PrimaryButton onClick={() => accept(order.id)} className="h-9 px-3 text-xs">Accept order</PrimaryButton> : order.status === 'assigned' || order.status === 'picked_up' ? <PrimaryButton onClick={() => advance(order)} className="h-9 px-3 text-xs">{order.status === 'assigned' ? 'Mark picked up' : 'Mark delivered'}</PrimaryButton> : null}/>)}{tab !== 'earnings' && (tab === 'available' ? available : mine).length === 0 ? <p className="py-16 text-center text-sm text-muted-foreground">No orders yet.</p> : null}</div></div>
-}
+
+  async function run(id: string, action: () => Promise<{ error: string | null }>) {
+    setBusy(id)
+    setActionError(null)
+    const result = await action()
+    if (result.error) setActionError(result.error)
+    await mutate()
+    setBusy(null)
+  }
+
+  return <div className="pb-8"><ScreenHeader title="Rider dashboard" subtitle="Deliver orders and track earnings"/><div className="flex gap-2 overflow-x-auto px-5 pt-4">{(['available','mine','earnings'] as const).map((item) => <button key={item} onClick={() => setTab(item)} className={`rounded-full px-4 py-2 text-xs font-bold capitalize ${tab === item ? 'bg-brand text-brand-foreground' : 'bg-secondary text-muted-foreground'}`}>{item === 'mine' ? 'My orders' : item}</button>)}</div><div className="space-y-3 px-5 pt-5"><SafeMessage error={data?.error}/>{actionError ? <p className="rounded-2xl bg-destructive/10 px-4 py-3 text-sm font-semibold text-destructive">{actionError}</p> : null}{tab === 'earnings' ? <Earnings rows={earnings?.data as any[] ?? []}/> : <><div className="rounded-2xl bg-secondary p-4"><p className="text-xs text-muted-foreground">Unpicked orders</p><p className="mt-1 text-2xl font-extrabold text-foreground">{available.length}</p></div>{(tab === 'available' ? available : mine).map((order) => <RiderOrderCard key={order.id} order={order} busy={busy === order.id} onAccept={() => run(order.id, () => acceptRiderOrder(order.id))} onDecline={() => run(order.id, () => declineRiderOrder(order.id))} onLock={() => run(order.id, () => updateRiderOrderStatus(order.id, 'picked_up'))} onDeliver={() => run(order.id, () => updateRiderOrderStatus(order.id, 'delivered'))}/>)}</>}{tab !== 'earnings' && (tab === 'available' ? available : mine).length === 0 ? <p className="py-16 text-center text-sm text-muted-foreground">No orders yet.</p> : null}</div></div>
+} 
+
+function RiderOrderCard({ order, busy, onAccept, onDecline, onLock, onDeliver }: { order: any; busy: boolean; onAccept: () => void; onDecline: () => void; onLock: () => void; onDeliver: () => void }) { const vendorName = Array.isArray(order.vendors) ? order.vendors[0]?.name : order.vendors?.name; const items = (order.order_items ?? []).map((item: any) => `${item.quantity}x ${item.item_name}`).join(', '); return <article className="rounded-3xl border border-border bg-card p-4 shadow-sm"><div className="flex items-start justify-between gap-3"><div><p className="text-sm font-extrabold text-foreground">{order.order_code}</p><p className="mt-1 text-xs text-muted-foreground">{vendorName ?? 'Vendor'}</p></div><span className="text-sm font-extrabold">{formatNaira(order.total)}</span></div><div className="mt-3 space-y-1 text-xs text-muted-foreground"><p>Pickup: {vendorName ?? 'Vendor'}</p><p>Dropoff: {order.dropoff_location}</p><p>Items: {items || 'No item summary'}</p></div><div className="mt-4 flex flex-wrap gap-2">{order.status === 'confirmed' && !order.rider_id ? <><PrimaryButton disabled={busy} onClick={onAccept} className="h-9 px-3 text-xs">Accept</PrimaryButton><button disabled={busy} onClick={onDecline} className="rounded-xl bg-destructive/10 px-3 py-2 text-xs font-bold text-destructive">Decline</button></> : null}{order.status === 'assigned' ? <PrimaryButton disabled={busy} onClick={onLock} className="h-9 px-3 text-xs">Lock in</PrimaryButton> : null}{order.status === 'picked_up' ? <PrimaryButton disabled={busy} onClick={onDeliver} className="h-9 px-3 text-xs">Mark delivered</PrimaryButton> : null}</div></article> }
 
 function Earnings({ rows }: { rows: any[] }) { const today = new Date().toISOString().slice(0, 10); const todayRow = rows.find((row) => row.day === today); return <div className="space-y-4"><div className="grid grid-cols-2 gap-3"><div className="rounded-2xl bg-secondary p-4"><p className="text-xs text-muted-foreground">Today&apos;s deliveries</p><p className="mt-1 text-2xl font-extrabold">{todayRow?.deliveries ?? 0}</p></div><div className="rounded-2xl bg-secondary p-4"><p className="text-xs text-muted-foreground">Today&apos;s earnings</p><p className="mt-1 text-2xl font-extrabold">{formatNaira(todayRow?.earnings ?? 0)}</p></div></div>{rows.length === 0 ? <p className="py-12 text-center text-sm text-muted-foreground">No earnings yet.</p> : <div className="divide-y divide-border rounded-2xl border border-border">{rows.map((row) => <div key={row.day} className="flex justify-between p-3 text-sm"><span>{row.day}</span><span>{row.deliveries} deliveries · {formatNaira(row.earnings)}</span></div>)}</div>}</div> }
 

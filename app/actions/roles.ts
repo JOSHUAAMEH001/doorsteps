@@ -26,11 +26,52 @@ export async function updateOrderStatus(id: string, status: string): Promise<Saf
 }
 
 export async function getRiderOrders(): Promise<SafeResult<unknown[]>> {
-  try { const supabase = await client(); const { data, error } = await supabase.from('orders').select('id, order_code, created_at, customer_name, phone, dropoff_location, status, total, delivery_fee, rider_id, rider_earning, order_items(item_name, unit_price, quantity)').order('created_at', { ascending: false }); return { data: data ?? [], error: error?.message ?? null } } catch (error) { return { data: [], error: error instanceof Error ? error.message : String(error) } }
+  try {
+    const supabase = await client()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { data: [], error: 'Please log in again.' }
+    const { data: declines, error: declineError } = await supabase.from('order_declines').select('order_id').eq('rider_id', user.id)
+    if (declineError) return { data: [], error: declineError.message }
+    const declinedIds = (declines ?? []).map((row) => row.order_id)
+    let query = supabase.from('orders').select('id, order_code, created_at, customer_name, phone, pickup_location, dropoff_location, status, total, delivery_fee, rider_id, rider_earning, order_items(item_name, unit_price, quantity), vendors(name)').order('created_at', { ascending: false })
+    query = query.or(`rider_id.eq.${user.id},and(status.eq.confirmed,rider_id.is.null)`)
+    const { data, error } = await query
+    if (error) return { data: [], error: error.message }
+    return { data: (data ?? []).filter((order) => order.rider_id === user.id || !declinedIds.includes(order.id)), error: null }
+  } catch (error) { return { data: [], error: error instanceof Error ? error.message : String(error) } }
 }
 
 export async function acceptRiderOrder(id: string): Promise<SafeResult<null>> {
-  try { const supabase = await client(); const { data: { user } } = await supabase.auth.getUser(); if (!user) return { data: null, error: 'Please log in again.' }; const { error } = await supabase.from('orders').update({ rider_id: user.id, status: 'assigned' }).eq('id', id).eq('status', 'confirmed').is('rider_id', null); return { data: null, error: error?.message ?? null } } catch (error) { return { data: null, error: error instanceof Error ? error.message : String(error) } }
+  try {
+    const supabase = await client()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { data: null, error: 'Please log in again.' }
+    const { data, error } = await supabase.from('orders').update({ rider_id: user.id, status: 'assigned' }).eq('id', id).eq('status', 'confirmed').is('rider_id', null).select('id').maybeSingle()
+    if (error) return { data: null, error: error.message }
+    return data ? { data: null, error: null } : { data: null, error: 'Order already taken' }
+  } catch (error) { return { data: null, error: error instanceof Error ? error.message : String(error) } }
+}
+
+export async function declineRiderOrder(id: string): Promise<SafeResult<null>> {
+  try {
+    const supabase = await client()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { data: null, error: 'Please log in again.' }
+    const { error } = await supabase.from('order_declines').insert({ order_id: id, rider_id: user.id })
+    return { data: null, error: error?.message ?? null }
+  } catch (error) { return { data: null, error: error instanceof Error ? error.message : String(error) } }
+}
+
+export async function updateRiderOrderStatus(id: string, status: 'picked_up' | 'delivered'): Promise<SafeResult<null>> {
+  try {
+    const supabase = await client()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { data: null, error: 'Please log in again.' }
+    const values = status === 'delivered' ? { status, delivered_at: new Date().toISOString() } : { status }
+    const { data, error } = await supabase.from('orders').update(values).eq('id', id).eq('rider_id', user.id).select('id').maybeSingle()
+    if (error) return { data: null, error: error.message }
+    return data ? { data: null, error: null } : { data: null, error: 'Order is no longer assigned to you.' }
+  } catch (error) { return { data: null, error: error instanceof Error ? error.message : String(error) } }
 }
 
 export async function getRiderEarnings(): Promise<SafeResult<unknown[]>> {
