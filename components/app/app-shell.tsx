@@ -15,6 +15,7 @@ import { PaymentScreen } from "@/components/screens/payment-screen"
 import { TrackingScreen } from "@/components/screens/tracking-screen"
 import { SuccessScreen } from "@/components/screens/success-screen"
 import { OrdersScreen } from "@/components/screens/orders-screen"
+import { RoleDashboardScreen } from "@/components/screens/role-dashboard-screen"
 import { NotificationsScreen } from "@/components/screens/notifications-screen"
 import { ProfileScreen } from "@/components/screens/profile-screen"
 import { SupportScreen } from "@/components/screens/support-screen"
@@ -54,7 +55,13 @@ export function AppShell() {
       case "success":
         return <SuccessScreen />
       case "orders":
-        return <OrdersScreen />
+        return <RoleDashboardScreen role="customer" />
+      case "vendorDashboard":
+        return <RoleDashboardScreen role="vendor" />
+      case "riderDashboard":
+        return <RoleDashboardScreen role="rider" />
+      case "adminDashboard":
+        return <RoleDashboardScreen role="admin" />
       case "notifications":
         return <NotificationsScreen />
       case "profile":

@@ -74,6 +74,23 @@ export async function submitCheckout(input: CheckoutInput): Promise<OrderResult>
       return { ok: false, message: itemsError.message }
     }
 
+    if (process.env.RESEND_API_KEY) {
+      try {
+        await fetch('https://api.resend.com/emails', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            from: 'Doorsteps <onboarding@resend.dev>',
+            to: ['amehjoshua031@gmail.com'],
+            subject: `New Doorsteps order ${order.order_code}`,
+            text: [`Order: ${order.order_code}`, `Customer: ${input.customerName}`, `Phone: ${input.phone}`, `Items: ${input.items.map((item) => `${item.quantity}x ${item.itemName}`).join(', ')}`, `Total: ₦${input.total.toLocaleString('en-NG')}`, `Dropoff: ${input.dropoffLocation}`].join('\\n'),
+          }),
+        })
+      } catch (emailError) {
+        console.error('[v0] order email failed', emailError)
+      }
+    }
+
     return { ok: true, orderCode: order.order_code }
   } catch (error) {
     return { ok: false, message: error instanceof Error ? error.message : String(error) }

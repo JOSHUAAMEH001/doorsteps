@@ -5,6 +5,7 @@ import { Logo } from "@/components/brand/logo"
 import { PrimaryButton } from "@/components/app/ui"
 import { useApp } from "@/lib/store"
 import { createClient } from "@/lib/supabase/client"
+import { getCurrentProfile } from "@/app/actions/roles"
 
 export function AuthScreen() {
   const { navigate, signIn } = useApp()
@@ -45,7 +46,11 @@ export function AuthScreen() {
     }
 
     signIn(email.split("@")[0] || "Customer")
-    navigate("home")
+    const profile = await getCurrentProfile()
+    if (profile.data?.role === "vendor") navigate("vendorDashboard")
+    else if (profile.data?.role === "rider") navigate("riderDashboard")
+    else if (profile.data?.role === "admin") navigate("adminDashboard")
+    else navigate("orders")
   }
 
   return (
