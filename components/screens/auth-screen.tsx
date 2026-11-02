@@ -5,6 +5,7 @@ import { Logo } from "@/components/brand/logo"
 import { PrimaryButton } from "@/components/app/ui"
 import { useApp } from "@/lib/store"
 import { createClient } from "@/lib/supabase/client"
+import { getCurrentProfile } from "@/app/actions/roles"
 
 export function AuthScreen() {
   const { navigate, signIn } = useApp()
@@ -45,7 +46,11 @@ export function AuthScreen() {
     }
 
     signIn(email.split("@")[0] || "Customer")
-    navigate("home")
+    const profile = await getCurrentProfile()
+    if (profile.data?.role === "vendor") navigate("vendorDashboard")
+    else if (profile.data?.role === "rider") navigate("riderDashboard")
+    else if (profile.data?.role === "admin") navigate("adminDashboard")
+    else navigate("orders")
   }
 
   return (
@@ -82,6 +87,11 @@ export function AuthScreen() {
               className="mt-2 w-full rounded-2xl border border-border bg-background px-4 py-3 text-sm font-medium outline-none focus:border-brand"
             />
           </label>
+          {mode === "login" ? (
+            <a href="/forgot-password" className="block text-right text-xs font-semibold text-brand hover:underline">
+              Forgot password?
+            </a>
+          ) : null}
           {message ? <p className="rounded-2xl bg-brand-soft px-4 py-3 text-xs font-semibold text-brand">{message}</p> : null}
         </div>
 

@@ -51,8 +51,8 @@ export interface AppNotification {
 
 export const NAIRA = "\u20A6"
 
-export function formatNaira(amount: number) {
-  return `${NAIRA}${amount.toLocaleString("en-NG")}`
+export function formatNaira(amount: number | null | undefined) {
+  return `${NAIRA}${(amount ?? 0).toLocaleString("en-NG")}`
 }
 
 export const categories: { id: CategoryId; label: string; description: string }[] = [
