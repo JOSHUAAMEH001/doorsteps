@@ -23,7 +23,7 @@ const categoryIcons: Record<CategoryId, typeof Utensils> = {
 }
 
 export function HomeScreen() {
-  const { navigate, userName, vendors, orders } = useApp()
+  const { navigate, userName, vendors, orders, isAdmin } = useApp()
   const activeOrder = orders.find((o) => o.status === "on_the_way")
 
   return (
@@ -68,6 +68,23 @@ export function HomeScreen() {
           </span>
         </button>
       </div>
+
+      {isAdmin ? (
+        <section className="px-5 pt-5">
+          <button
+            type="button"
+            onClick={() => navigate("adminDashboard")}
+            className="flex w-full items-center justify-between rounded-2xl border border-brand/20 bg-brand-soft p-4 text-left"
+            aria-label="Open admin panel"
+          >
+            <span>
+              <span className="block text-sm font-extrabold text-foreground">Admin panel</span>
+              <span className="mt-1 block text-xs text-muted-foreground">Manage orders, riders and delivery performance</span>
+            </span>
+            <ChevronRight className="h-5 w-5 text-brand" />
+          </button>
+        </section>
+      ) : null}
 
       {/* Categories */}
       <section className="px-5 pt-6">

@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { mutate } from "swr"
 import { Logo } from "@/components/brand/logo"
 import { PrimaryButton } from "@/components/app/ui"
 import { useApp } from "@/lib/store"
@@ -47,6 +48,7 @@ export function AuthScreen() {
 
     signIn(email.split("@")[0] || "Customer")
     const profile = await getCurrentProfile()
+    await mutate("current-profile", profile, { revalidate: false })
     if (profile.data?.role === "vendor") navigate("vendorDashboard")
     else if (profile.data?.role === "rider") navigate("riderDashboard")
     else if (profile.data?.role === "admin") navigate("adminDashboard")
