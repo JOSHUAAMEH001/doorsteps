@@ -10,6 +10,7 @@ import {
 } from "react"
 import useSWR from "swr"
 import { getMyOrders, getVendors } from "@/app/actions/catalog"
+import { getCurrentProfile, type Role } from "@/app/actions/roles"
 import type { CategoryId, Order, Product, Vendor } from "@/lib/data"
 
 export type Screen =
@@ -89,6 +90,8 @@ interface AppState {
 
   userName: string
   isGuest: boolean
+  role: Role | null
+  isAdmin: boolean
   signIn: (name: string, guest?: boolean) => void
 }
 
@@ -106,6 +109,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [isGuest, setIsGuest] = useState(false)
   const { data: vendorRows = [] } = useSWR("vendors", getVendors)
   const { data: orderRows = [] } = useSWR("my-orders", getMyOrders)
+  const { data: profileResult } = useSWR("current-profile", getCurrentProfile)
+  const role = profileResult?.data?.role ?? null
 
   const vendors = useMemo<Vendor[]>(
     () => vendorRows.map((vendor) => ({
@@ -233,6 +238,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setDeliveryDetails,
     userName,
     isGuest,
+    role,
+    isAdmin: role === "admin",
     signIn,
   }
 
