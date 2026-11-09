@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import Image from "next/image"
+import { SafeImage } from "@/components/app/safe-image"
 import { Phone, MessageCircle, MapPin } from "lucide-react"
 import { useApp } from "@/lib/store"
 import { ScreenHeader, Rating } from "@/components/app/ui"
@@ -35,7 +35,7 @@ export function TrackingScreen() {
 
       {/* Map */}
       <div className="relative h-56 w-full overflow-hidden">
-        <Image
+        <SafeImage
           src="/map-route.png"
           alt="Live delivery route map"
           fill
@@ -73,7 +73,7 @@ export function TrackingScreen() {
         {/* Rider card */}
         <div className="rounded-3xl border border-border bg-card p-4 shadow-sm">
           <div className="flex items-center gap-3">
-            <Image
+            <SafeImage
               src="/rider-avatar.png"
               alt="Rider Emeka"
               width={52}

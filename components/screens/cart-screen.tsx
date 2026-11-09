@@ -1,10 +1,11 @@
 "use client"
 
-import Image from "next/image"
+import { SafeImage } from "@/components/app/safe-image"
 import { Minus, Plus, ShoppingCart, Trash2 } from "lucide-react"
 import { ScreenHeader, PrimaryButton } from "@/components/app/ui"
 import { formatNaira } from "@/lib/data"
 import { useApp } from "@/lib/store"
+import { getDishImage, getImageUrl } from "@/lib/images"
 
 export function CartScreen() {
   const {
@@ -57,7 +58,7 @@ export function CartScreen() {
             >
               <div className="relative h-20 w-20 shrink-0">
                 <Image
-                  src={line.product.image || "/placeholder.svg"}
+                  src={getImageUrl(line.product.image, getDishImage(line.product.name))}
                   alt={line.product.name}
                   fill
                   className="rounded-2xl object-cover"

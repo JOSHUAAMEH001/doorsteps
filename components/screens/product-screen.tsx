@@ -1,12 +1,13 @@
 "use client"
 
-import Image from "next/image"
+import { SafeImage } from "@/components/app/safe-image"
 import { ArrowLeft, Minus, Plus, Star } from "lucide-react"
 import { useState } from "react"
 import useSWR from "swr"
 import { getMenuItem } from "@/app/actions/catalog"
 import { formatNaira, type Product } from "@/lib/data"
 import { useApp } from "@/lib/store"
+import { getDishImage, getImageUrl } from "@/lib/images"
 
 export function ProductScreen() {
   const { params, back, navigate, addToCart } = useApp()
@@ -37,7 +38,7 @@ export function ProductScreen() {
         {/* Image */}
         <div className="relative h-72 w-full bg-secondary">
           <Image
-            src={product.image || "/placeholder.svg"}
+            src={getImageUrl(product.image, getDishImage(product.name))}
             alt={product.name}
             fill
             className="object-cover"

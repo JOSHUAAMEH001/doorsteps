@@ -1,6 +1,6 @@
 "use client"
 
-import Image from "next/image"
+import { SafeImage } from "@/components/app/safe-image"
 import { ArrowLeft, Bike, Clock, Heart, MapPin, Plus, Star } from "lucide-react"
 import { useMemo, useState } from "react"
 import useSWR from "swr"
@@ -8,6 +8,7 @@ import { getMenuItems } from "@/app/actions/catalog"
 import { formatNaira, type Product } from "@/lib/data"
 import { useApp } from "@/lib/store"
 import { cn } from "@/lib/utils"
+import { getDishImage, getImageUrl, getVendorImage } from "@/lib/images"
 
 export function VendorScreen() {
   const { params, back, navigate, addToCart, vendors } = useApp()
@@ -47,7 +48,7 @@ export function VendorScreen() {
       {/* Banner */}
       <div className="relative h-52 w-full">
         <Image
-          src={vendor.image || "/placeholder.svg"}
+          src={getImageUrl(vendor.image, getVendorImage(vendor.name, vendor.category))}
           alt={vendor.name}
           fill
           className="object-cover"
@@ -159,7 +160,7 @@ export function VendorScreen() {
                   </button>
                   <div className="relative h-24 w-24 shrink-0">
                     <Image
-                      src={p.image || "/placeholder.svg"}
+                      src={getImageUrl(p.image, getDishImage(p.name, vendor.category))}
                       alt={p.name}
                       fill
                       className="rounded-2xl object-cover"

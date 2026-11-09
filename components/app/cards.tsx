@@ -1,11 +1,12 @@
 "use client"
 
-import Image from "next/image"
 import { Bike, Clock } from "lucide-react"
+import { SafeImage } from "@/components/app/safe-image"
 import { Rating } from "@/components/app/ui"
 import { formatNaira, type Vendor } from "@/lib/data"
 import { useApp } from "@/lib/store"
 import { cn } from "@/lib/utils"
+import { getVendorImage, getImageUrl } from "@/lib/images"
 
 export function VendorCard({ vendor }: { vendor: Vendor }) {
   const { navigate } = useApp()
@@ -17,7 +18,7 @@ export function VendorCard({ vendor }: { vendor: Vendor }) {
     >
       <div className="relative h-36 w-full">
         <Image
-          src={vendor.image || "/placeholder.svg"}
+          src={getImageUrl(vendor.image, getVendorImage(vendor.name, vendor.category))}
           alt={vendor.name}
           fill
           className="object-cover"
@@ -59,7 +60,7 @@ export function VendorTile({ vendor }: { vendor: Vendor }) {
     >
       <div className="relative h-24 w-full">
         <Image
-          src={vendor.image || "/placeholder.svg"}
+          src={getImageUrl(vendor.image, getVendorImage(vendor.name, vendor.category))}
           alt={vendor.name}
           fill
           className="object-cover"
