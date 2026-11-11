@@ -109,7 +109,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [orderId, setOrderId] = useState<string | null>(null)
   const [userName, setUserName] = useState("Chidera")
   const [isGuest, setIsGuest] = useState(false)
-  const { data: vendorRows = [], error: vendorsError, isLoading: vendorsLoading } = useSWR("vendors", getVendors)
+  const { data: vendorRows = [], error: vendorsError, isLoading: vendorsLoading } = useSWR("vendors", () => getVendors())
   const { data: orderRows = [] } = useSWR("my-orders", getMyOrders)
   const { data: profileResult } = useSWR("current-profile", getCurrentProfile)
   const role = profileResult?.data?.role ?? null

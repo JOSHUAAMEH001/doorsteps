@@ -2,9 +2,11 @@
 
 import { Search, SlidersHorizontal, X } from "lucide-react"
 import { useMemo, useState } from "react"
+import useSWR from "swr"
+import { getVendors } from "@/app/actions/catalog"
 import { ScreenHeader, Pill } from "@/components/app/ui"
 import { VendorCard } from "@/components/app/cards"
-import { categories, type CategoryId } from "@/lib/data"
+import { categories, type CategoryId, type Vendor } from "@/lib/data"
 import { useApp } from "@/lib/store"
 
 type SortKey = "recommended" | "rating" | "delivery"
@@ -16,9 +18,24 @@ const sortOptions: { key: SortKey; label: string }[] = [
 ]
 
 export function VendorsScreen() {
-  const { params, vendors, vendorsLoading, vendorsError } = useApp()
+  const { params } = useApp()
   const initial = (params.category as CategoryId) || "food"
   const [category, setCategory] = useState<CategoryId>(initial)
+  const databaseCategory = category === "food" ? "Food" : category === "groceries" ? "Groceries" : undefined
+  const { data: vendorRows = [], isLoading: vendorsLoading, error: vendorsError } = useSWR(
+    ["vendors-by-category", databaseCategory ?? "all"],
+    () => getVendors(databaseCategory),
+  )
+  const vendors = useMemo<Vendor[]>(() => vendorRows.map((vendor) => ({
+    id: vendor.id,
+    name: vendor.name,
+    category: String(vendor.category).toLowerCase() as CategoryId,
+    image: vendor.image_url ?? "",
+    rating: vendor.rating,
+    deliveryMins: vendor.delivery_minutes,
+    deliveryFee: null,
+    isOpen: vendor.is_active,
+  })), [vendorRows])
   const [query, setQuery] = useState("")
   const [sort, setSort] = useState<SortKey>("recommended")
   const [showFilter, setShowFilter] = useState(false)
