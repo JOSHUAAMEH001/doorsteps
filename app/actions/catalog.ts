@@ -11,7 +11,10 @@ export async function getVendors(category?: string) {
     .order('name')
   if (category) query = query.eq('category', category)
   const { data, error } = await query
-  if (error) throw new Error(error.message)
+  if (error) {
+    console.error("[catalog] Failed to load vendors", error)
+    throw new Error("Could not load. Please refresh.")
+  }
   return data ?? []
 }
 
@@ -23,7 +26,10 @@ export async function getMenuItem(id: string) {
     .eq('id', id)
     .eq('is_available', true)
     .single()
-  if (error) throw new Error(error.message)
+  if (error) {
+    console.error("[catalog] Failed to load menu item", error)
+    throw new Error("Could not load. Please refresh.")
+  }
   return data
 }
 
@@ -34,8 +40,11 @@ export async function getMenuItems(vendorId: string) {
     .select('id, vendor_id, name, description, price, image_url, is_available')
     .eq('vendor_id', vendorId)
     .eq('is_available', true)
-    .order('name')
-  if (error) throw new Error(error.message)
+    .order('price', { ascending: true })
+  if (error) {
+    console.error("[catalog] Failed to load menu items", error)
+    throw new Error("Could not load. Please refresh.")
+  }
   return data ?? []
 }
 

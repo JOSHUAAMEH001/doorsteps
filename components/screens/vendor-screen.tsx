@@ -1,7 +1,7 @@
 "use client"
 
 import Image from "next/image"
-import { ArrowLeft, Bike, Clock, Heart, MapPin, Plus, Star } from "lucide-react"
+import { ArrowLeft, Bike, Clock, Heart, Plus, Star } from "lucide-react"
 import { useMemo, useState } from "react"
 import useSWR from "swr"
 import { getMenuItems } from "@/app/actions/catalog"
@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils"
 export function VendorScreen() {
   const { params, back, navigate, addToCart, vendors } = useApp()
   const vendor = vendors.find((v) => v.id === params.vendorId)
-  const { data: menuRows = [], isLoading } = useSWR(
+  const { data: menuRows = [], isLoading, error: menuError } = useSWR(
     vendor ? ["menu-items", vendor.id] : null,
     ([, vendorId]) => getMenuItems(vendorId),
   )
@@ -29,9 +29,6 @@ export function VendorScreen() {
     [menuRows],
   )
 
-  if (!vendor) {
-    return <div className="p-6 text-sm text-muted-foreground">Vendor not found.</div>
-  }
   const groups = useMemo(() => {
     const map = new Map<string, typeof items>()
     for (const p of items) {
@@ -42,18 +39,13 @@ export function VendorScreen() {
 
   const [activeGroup, setActiveGroup] = useState(groups[0]?.[0] ?? "")
 
+  if (!vendor) return <div className="p-6 text-sm text-muted-foreground">Vendor not found.</div>
+
   return (
     <div className="pb-8">
       {/* Banner */}
       <div className="relative h-52 w-full">
-        <Image
-          src={vendor.image || "/placeholder.svg"}
-          alt={vendor.name}
-          fill
-          className="object-cover"
-          sizes="420px"
-          priority
-        />
+        {vendor.image ? <Image src={vendor.image} alt={vendor.name} fill className="object-cover" sizes="420px" priority /> : <div className="flex h-full items-center justify-center bg-[#EE0000] px-6 text-center text-2xl font-extrabold text-white">{vendor.name}</div>}
         <div className="absolute inset-0 bg-gradient-to-t from-foreground/60 to-transparent" />
         <div className="absolute inset-x-0 top-0 flex items-center justify-between p-4">
           <button
@@ -128,8 +120,9 @@ export function VendorScreen() {
 
       {/* Products */}
       <div className="px-5 pt-5">
+        {menuError ? <p role="alert" className="py-12 text-center text-sm text-muted-foreground">Could not load. Please refresh.</p> : null}
         {isLoading ? <p className="py-12 text-center text-sm text-muted-foreground">Loading menu...</p> : null}
-        {!isLoading && groups.length === 0 ? <p className="py-12 text-center text-sm text-muted-foreground">No menu items yet.</p> : null}
+        {!menuError && !isLoading && groups.length === 0 ? <p className="py-12 text-center text-sm text-muted-foreground">No menu items yet.</p> : null}
         {groups.map(([group, groupItems]) => (
           <section key={group} id={`group-${group}`} className="scroll-mt-32 pb-6">
             <h2 className="mb-3 text-base font-extrabold text-foreground">{group}</h2>
