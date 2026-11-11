@@ -1,7 +1,7 @@
 "use client"
 
-import Image from "next/image"
 import { Bike, Clock } from "lucide-react"
+import { CatalogImage } from "@/components/app/catalog-image"
 import { Rating } from "@/components/app/ui"
 import { formatNaira, type Vendor } from "@/lib/data"
 import { useApp } from "@/lib/store"
@@ -16,7 +16,7 @@ export function VendorCard({ vendor }: { vendor: Vendor }) {
       className="w-full overflow-hidden rounded-3xl border border-border bg-card text-left transition-transform active:scale-[0.99]"
     >
       <div className="relative h-36 w-full">
-        {vendor.image ? <Image src={vendor.image} alt={vendor.name} fill className="object-cover" sizes="420px" /> : <div className="flex h-full items-center justify-center bg-[#EE0000] px-4 text-center text-lg font-extrabold text-white">{vendor.name}</div>}
+        <CatalogImage name={vendor.name} imageUrl={vendor.image} sizes="420px" />
         <span
           className={cn(
             "absolute right-3 top-3 rounded-full px-2.5 py-1 text-[11px] font-bold",
@@ -52,7 +52,7 @@ export function VendorTile({ vendor }: { vendor: Vendor }) {
       className="w-40 shrink-0 overflow-hidden rounded-3xl border border-border bg-card text-left transition-transform active:scale-[0.98]"
     >
       <div className="relative h-24 w-full">
-        {vendor.image ? <Image src={vendor.image} alt={vendor.name} fill className="object-cover" sizes="160px" /> : <div className="flex h-full items-center justify-center bg-[#EE0000] px-3 text-center text-sm font-extrabold text-white">{vendor.name}</div>}
+        <CatalogImage name={vendor.name} imageUrl={vendor.image} sizes="160px" className="object-cover" fallbackClassName="text-sm" />
       </div>
       <div className="p-3">
         <h3 className="truncate text-sm font-bold text-foreground">{vendor.name}</h3>

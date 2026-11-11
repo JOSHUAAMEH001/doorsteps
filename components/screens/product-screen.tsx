@@ -1,7 +1,7 @@
 "use client"
 
-import Image from "next/image"
 import { ArrowLeft, Minus, Plus } from "lucide-react"
+import { CatalogImage } from "@/components/app/catalog-image"
 import { useState } from "react"
 import useSWR from "swr"
 import { getMenuItem } from "@/app/actions/catalog"
@@ -37,14 +37,7 @@ export function ProductScreen() {
       <div className="no-scrollbar flex-1 overflow-y-auto pb-4">
         {/* Image */}
         <div className="relative h-72 w-full bg-secondary">
-          <Image
-            src={product.image || "/placeholder.svg"}
-            alt={product.name}
-            fill
-            className="object-cover"
-            sizes="420px"
-            priority
-          />
+          <CatalogImage name={product.name} imageUrl={product.image} sizes="420px" priority fallbackClassName="text-2xl" />
           <button
             type="button"
             onClick={back}
