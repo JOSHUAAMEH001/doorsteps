@@ -1,7 +1,7 @@
 "use client"
 
-import Image from "next/image"
 import { ArrowLeft, Bike, Clock, Heart, Plus, Star } from "lucide-react"
+import { CatalogImage } from "@/components/app/catalog-image"
 import { useMemo, useState } from "react"
 import useSWR from "swr"
 import { getMenuItems } from "@/app/actions/catalog"
@@ -45,7 +45,7 @@ export function VendorScreen() {
     <div className="pb-8">
       {/* Banner */}
       <div className="relative h-52 w-full">
-        {vendor.image ? <Image src={vendor.image} alt={vendor.name} fill className="object-cover" sizes="420px" priority /> : <div className="flex h-full items-center justify-center bg-[#EE0000] px-6 text-center text-2xl font-extrabold text-white">{vendor.name}</div>}
+        <CatalogImage name={vendor.name} imageUrl={vendor.image} sizes="420px" priority fallbackClassName="text-2xl" />
         <div className="absolute inset-0 bg-gradient-to-t from-foreground/60 to-transparent" />
         <div className="absolute inset-x-0 top-0 flex items-center justify-between p-4">
           <button
@@ -151,13 +151,7 @@ export function VendorScreen() {
                     </p>
                   </button>
                   <div className="relative h-24 w-24 shrink-0">
-                    <Image
-                      src={p.image || "/placeholder.svg"}
-                      alt={p.name}
-                      fill
-                      className="rounded-2xl object-cover"
-                      sizes="96px"
-                    />
+                    <CatalogImage name={p.name} imageUrl={p.image} sizes="96px" className="rounded-2xl object-cover" fallbackClassName="text-[10px] leading-tight" />
                     <button
                       type="button"
                       onClick={() => addToCart(p, 1)}
