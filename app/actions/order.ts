@@ -32,12 +32,36 @@ export async function submitOrder(_input: unknown): Promise<OrderResult> {
 }
 
 export async function submitCheckout(input: CheckoutInput): Promise<OrderResult> {
-  if (!input.items.length || input.subtotal <= 0 || input.total <= 0) {
-    return { ok: false, message: 'Your cart is empty. Add an item before placing an order.' }
+  if (!input.items?.length || !input.vendorId || input.items.some((item) => !Number.isInteger(item.quantity) || item.quantity < 1 || item.quantity > 99)) {
+    return { ok: false, message: 'Your cart is empty or contains an invalid quantity. Please review your cart.' }
   }
 
   try {
     const supabase = await createClient()
+    const itemIds = [...new Set(input.items.map((item) => item.menuItemId))]
+    const { data: liveItems, error: menuError } = await supabase
+      .from('menu_items')
+      .select('id, vendor_id, name, price, is_available')
+      .in('id', itemIds)
+      .eq('vendor_id', input.vendorId)
+      .eq('is_available', true)
+
+    if (menuError) {
+      console.error('[orders] Failed to validate menu items', menuError)
+      return { ok: false, message: 'Could not load. Please refresh.' }
+    }
+    if (!liveItems || liveItems.length !== itemIds.length) {
+      return { ok: false, message: 'Some items are no longer available. Please refresh your cart.' }
+    }
+    const liveById = new Map(liveItems.map((item) => [item.id, item]))
+    const orderItems = input.items.map((item) => {
+      const live = liveById.get(item.menuItemId)!
+      return { ...item, itemName: live.name, unitPrice: Number(live.price) }
+    })
+    const subtotal = orderItems.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0)
+    const deliveryFee = Math.max(0, Number(input.deliveryFee) || 0)
+    const total = subtotal + deliveryFee
+
     const { data: order, error: orderError } = await supabase
       .from('orders')
       .insert({
@@ -47,9 +71,9 @@ export async function submitCheckout(input: CheckoutInput): Promise<OrderResult>
         dropoff_location: input.dropoffLocation.trim(),
         item_description: input.itemDescription.trim(),
         vendor_id: input.vendorId,
-        subtotal: input.subtotal,
-        delivery_fee: input.deliveryFee,
-        total: input.total,
+        subtotal,
+        delivery_fee: deliveryFee,
+        total,
         payment_method: input.paymentMethod,
       })
       .select('id, order_code')
@@ -60,10 +84,10 @@ export async function submitCheckout(input: CheckoutInput): Promise<OrderResult>
     }
 
     const { error: itemsError } = await supabase.from('order_items').insert(
-      input.items.map((item) => ({
+      orderItems.map((item) => ({
         order_id: order.id,
         menu_item_id: item.menuItemId,
-        item_name: item.itemName.trim(),
+        item_name: item.itemName,
         unit_price: item.unitPrice,
         quantity: item.quantity,
       })),
@@ -83,7 +107,7 @@ export async function submitCheckout(input: CheckoutInput): Promise<OrderResult>
             from: 'Doorsteps <onboarding@resend.dev>',
             to: ['amehjoshua031@gmail.com'],
             subject: `New Doorsteps order ${order.order_code}`,
-            text: [`Order: ${order.order_code}`, `Customer: ${input.customerName}`, `Phone: ${input.phone}`, `Items: ${input.items.map((item) => `${item.quantity}x ${item.itemName}`).join(', ')}`, `Total: ₦${input.total.toLocaleString('en-NG')}`, `Dropoff: ${input.dropoffLocation}`].join('\\n'),
+            text: [`Order: ${order.order_code}`, `Customer: ${input.customerName}`, `Phone: ${input.phone}`, `Items: ${orderItems.map((item) => `${item.quantity}x ${item.itemName}`).join(', ')}`, `Total: ₦${total.toLocaleString('en-NG')}`, `Dropoff: ${input.dropoffLocation}`].join('\\n'),
           }),
         })
       } catch (emailError) {

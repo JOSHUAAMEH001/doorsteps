@@ -59,6 +59,8 @@ interface AppState {
   canGoBack: boolean
 
   vendors: Vendor[]
+  vendorsLoading: boolean
+  vendorsError: unknown
   orders: Order[]
   cart: CartLine[]
   addToCart: (product: Product, qty: number, note?: string) => void
@@ -107,7 +109,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [orderId, setOrderId] = useState<string | null>(null)
   const [userName, setUserName] = useState("Chidera")
   const [isGuest, setIsGuest] = useState(false)
-  const { data: vendorRows = [] } = useSWR("vendors", getVendors)
+  const { data: vendorRows = [], error: vendorsError, isLoading: vendorsLoading } = useSWR("vendors", getVendors)
   const { data: orderRows = [] } = useSWR("my-orders", getMyOrders)
   const { data: profileResult } = useSWR("current-profile", getCurrentProfile)
   const role = profileResult?.data?.role ?? null
@@ -116,7 +118,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     () => vendorRows.map((vendor) => ({
       id: vendor.id,
       name: vendor.name,
-      category: vendor.category as CategoryId,
+      category: String(vendor.category).toLowerCase() as CategoryId,
       image: vendor.image_url ?? "",
       rating: vendor.rating,
       deliveryMins: vendor.delivery_minutes,
@@ -220,6 +222,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     back,
     canGoBack,
     vendors,
+    vendorsLoading,
+    vendorsError,
     orders,
     cart,
     addToCart,

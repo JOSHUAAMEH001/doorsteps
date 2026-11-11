@@ -23,7 +23,7 @@ const categoryIcons: Record<CategoryId, typeof Utensils> = {
 }
 
 export function HomeScreen() {
-  const { navigate, userName, vendors, orders, isAdmin } = useApp()
+  const { navigate, userName, vendors, vendorsLoading, vendorsError, orders, isAdmin } = useApp()
   const activeOrder = orders.find((o) => o.status === "on_the_way")
 
   return (
@@ -143,8 +143,10 @@ export function HomeScreen() {
           />
         </div>
         <div className="no-scrollbar flex gap-3 overflow-x-auto px-5 pt-3">
-          {vendors.length === 0 ? <p className="px-1 py-4 text-sm text-muted-foreground">No vendors yet.</p> : null}
-          {vendors.slice(0, 4).map((v) => (
+          {vendorsError ? <p role="alert" className="px-1 py-4 text-sm text-muted-foreground">Could not load. Please refresh.</p> : null}
+          {vendorsLoading ? <p className="px-1 py-4 text-sm text-muted-foreground">Loading vendors...</p> : null}
+          {!vendorsLoading && !vendorsError && vendors.length === 0 ? <p className="px-1 py-4 text-sm text-muted-foreground">No active vendors available yet.</p> : null}
+          {!vendorsError && vendors.slice(0, 4).map((v) => (
             <VendorTile key={v.id} vendor={v} />
           ))}
         </div>
@@ -157,8 +159,9 @@ export function HomeScreen() {
           onSeeAll={() => navigate("vendors", { category: "food" })}
         />
         <div className="mt-3 space-y-4">
-          {vendors.filter((v) => v.category === "food").length === 0 ? <p className="text-sm text-muted-foreground">No vendors yet.</p> : null}
-          {vendors
+          {vendorsError ? <p role="alert" className="text-sm text-muted-foreground">Could not load. Please refresh.</p> : null}
+          {!vendorsError && !vendorsLoading && vendors.filter((v) => v.category === "food").length === 0 ? <p className="text-sm text-muted-foreground">No active vendors available yet.</p> : null}
+          {!vendorsError && vendors
             .filter((v) => v.category === "food")
             .slice(0, 3)
             .map((v) => (

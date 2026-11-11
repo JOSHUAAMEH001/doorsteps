@@ -1,7 +1,7 @@
 "use client"
 
 import Image from "next/image"
-import { ArrowLeft, Minus, Plus, Star } from "lucide-react"
+import { ArrowLeft, Minus, Plus } from "lucide-react"
 import { useState } from "react"
 import useSWR from "swr"
 import { getMenuItem } from "@/app/actions/catalog"
@@ -10,7 +10,7 @@ import { useApp } from "@/lib/store"
 
 export function ProductScreen() {
   const { params, back, navigate, addToCart } = useApp()
-  const { data: row, isLoading } = useSWR(
+  const { data: row, isLoading, error } = useSWR(
     params.productId ? ["menu-item", params.productId] : null,
     ([, id]) => getMenuItem(id),
   )
@@ -26,6 +26,7 @@ export function ProductScreen() {
   const [qty, setQty] = useState(1)
   const [note, setNote] = useState("")
 
+  if (error) return <div role="alert" className="p-6 text-sm text-muted-foreground">Could not load. Please refresh.</div>
   if (isLoading) return <div className="p-6 text-sm text-muted-foreground">Loading item...</div>
   if (!product) return <div className="p-6 text-sm text-muted-foreground">Menu item not found.</div>
 
@@ -62,14 +63,6 @@ export function ProductScreen() {
             <p className="shrink-0 text-lg font-extrabold text-brand">
               {formatNaira(product.price)}
             </p>
-          </div>
-
-          <div className="mt-2 flex items-center gap-2 text-xs font-medium text-muted-foreground">
-            <span className="inline-flex items-center gap-1 text-foreground">
-              <Star className="h-3.5 w-3.5 fill-warning text-warning" /> 4.8
-            </span>
-            <span>•</span>
-            <span>320+ orders</span>
           </div>
 
           <p className="mt-4 text-sm leading-relaxed text-muted-foreground">

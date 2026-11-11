@@ -16,7 +16,7 @@ const sortOptions: { key: SortKey; label: string }[] = [
 ]
 
 export function VendorsScreen() {
-  const { params, vendors } = useApp()
+  const { params, vendors, vendorsLoading, vendorsError } = useApp()
   const initial = (params.category as CategoryId) || "food"
   const [category, setCategory] = useState<CategoryId>(initial)
   const [query, setQuery] = useState("")
@@ -84,9 +84,11 @@ export function VendorsScreen() {
       </div>
 
       <div className="space-y-4 px-5 pt-4">
-        {list.length > 0 ? <p className="text-xs font-medium text-muted-foreground">{list.length} vendors near you</p> : null}
+        {vendorsError ? <p role="alert" className="py-8 text-center text-sm text-muted-foreground">Could not load. Please refresh.</p> : null}
+        {vendorsLoading ? <p className="py-8 text-center text-sm text-muted-foreground">Loading vendors...</p> : null}
+        {!vendorsError && !vendorsLoading && list.length > 0 ? <p className="text-xs font-medium text-muted-foreground">{list.length} vendors near you</p> : null}
         {list.map((vendor) => <VendorCard key={vendor.id} vendor={vendor} />)}
-        {list.length === 0 ? (
+        {!vendorsError && !vendorsLoading && list.length === 0 ? (
           <div className="flex flex-col items-center gap-2 py-16 text-center">
             <X className="h-8 w-8 text-muted-foreground" />
             <p className="text-sm font-semibold text-foreground">No vendors yet</p>

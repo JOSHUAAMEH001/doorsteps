@@ -114,17 +114,6 @@ export function CartScreen() {
           ))}
         </div>
 
-        {/* Promo code */}
-        <div className="mt-4 flex items-center gap-2 rounded-2xl border border-dashed border-border bg-card p-3">
-          <input
-            placeholder="Enter promo code (AGBANI10)"
-            className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
-          />
-          <button type="button" className="text-xs font-bold text-brand">
-            Apply
-          </button>
-        </div>
-
         {/* Summary */}
         <div className="mt-4 space-y-2.5 rounded-3xl bg-secondary p-4">
           <Row label="Subtotal" value={formatNaira(cartSubtotal)} />
