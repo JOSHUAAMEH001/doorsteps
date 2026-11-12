@@ -17,10 +17,11 @@ const CustomerRiderMap = dynamic(() => import("@/components/screens/customer-rid
 })
 
 export function TrackingScreen() {
-  const { navigate, params } = useApp()
+  const { navigate, params, orderId } = useApp()
+  const trackingOrderCode = params.orderCode ?? orderId ?? ""
   const { data: trackingResult } = useSWR(
-    params.orderCode ? `customer-tracking:${params.orderCode}` : null,
-    () => getCustomerOrderForTracking(params.orderCode ?? ""),
+    trackingOrderCode ? `customer-tracking:${trackingOrderCode}` : null,
+    () => getCustomerOrderForTracking(trackingOrderCode),
   )
   const liveTracking = trackingResult?.data
   const isRiderTrackingActive = Boolean(
