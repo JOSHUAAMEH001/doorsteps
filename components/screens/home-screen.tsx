@@ -25,7 +25,7 @@ const categoryIcons: Record<CategoryId, typeof Utensils> = {
 
 export function HomeScreen() {
   const { navigate, userName, vendors, vendorsLoading, vendorsError, orders, ordersLoading, isAdmin } = useApp()
-  const activeOrder = orders.find((o) => o.status === "on_the_way")
+  const activeOrder = orders.find((o) => ["assigned", "picked_up", "on_the_way"].includes(o.status))
 
   return (
     <div className="pb-6">
@@ -124,7 +124,7 @@ export function HomeScreen() {
             </span>
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-bold text-foreground">
-                Order on the way
+                {activeOrder.status === "assigned" ? "Rider assigned" : "Order on the way"}
               </p>
               <p className="truncate text-xs text-muted-foreground">
                 {activeOrder.vendorName} • {activeOrder.id}
@@ -201,7 +201,7 @@ export function HomeScreen() {
               key={o.id}
               type="button"
               onClick={() =>
-                o.status === "on_the_way"
+                ["assigned", "picked_up", "on_the_way"].includes(o.status)
                   ? navigate("tracking", { vendorId: o.vendorId ?? undefined, orderCode: o.id })
                   : navigate("orders")
               }
