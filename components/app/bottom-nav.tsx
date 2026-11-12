@@ -15,7 +15,7 @@ const items: { screen: Screen; label: string; icon: typeof Home }[] = [
 export function BottomNav() {
   const { screen, navigate, cartCount } = useApp()
   return (
-    <nav className="sticky bottom-0 z-30 border-t border-border bg-background/95 px-2 pb-[env(safe-area-inset-bottom)] backdrop-blur">
+    <nav className="sticky bottom-0 z-30 border-t border-border bg-background/95 px-2 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden">
       <div className="flex items-stretch justify-between">
         {items.map((item) => {
           const active = screen === item.screen

@@ -1,11 +1,11 @@
 "use client"
 
 import { Search, SlidersHorizontal, X } from "lucide-react"
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import useSWR from "swr"
 import { getVendors } from "@/app/actions/catalog"
-import { LoadingState, ScreenHeader, Pill } from "@/components/app/ui"
-import { VendorCard } from "@/components/app/cards"
+import { ScreenHeader, Pill } from "@/components/app/ui"
+import { VendorCard, VendorCardSkeleton } from "@/components/app/cards"
 import { categories, type CategoryId, type Vendor } from "@/lib/data"
 import { useApp } from "@/lib/store"
 
@@ -36,8 +36,11 @@ export function VendorsScreen() {
     deliveryFee: null,
     isOpen: vendor.is_active,
   })), [vendorRows])
-  const [query, setQuery] = useState("")
+  const [query, setQuery] = useState(() => params.searchQuery ?? "")
   const [sort, setSort] = useState<SortKey>("recommended")
+  useEffect(() => {
+    setQuery(params.searchQuery ?? "")
+  }, [params.searchQuery])
   const [showFilter, setShowFilter] = useState(false)
   const activeCategory = categories.find((item) => item.id === category)
 
@@ -87,7 +90,7 @@ export function VendorsScreen() {
           ))}
         </div>
         {showFilter ? (
-          <div className="animate-fade-in-up rounded-2xl border border-border bg-card p-3">
+          <div className="rounded-2xl border border-border bg-card p-3">
             <p className="mb-2 text-xs font-bold text-foreground">Sort by</p>
             <div className="flex flex-wrap gap-2">
               {sortOptions.map((option) => (
@@ -102,9 +105,11 @@ export function VendorsScreen() {
 
       <div className="space-y-4 px-5 pt-4">
         {vendorsError ? <p role="alert" className="py-8 text-center text-sm text-muted-foreground">Could not load. Please refresh.</p> : null}
-        {vendorsLoading ? <LoadingState label="Finding nearby vendors..." /> : null}
+        {vendorsLoading ? <div className="flex flex-col gap-4"><VendorCardSkeleton /><VendorCardSkeleton /><VendorCardSkeleton /></div> : null}
         {!vendorsError && !vendorsLoading && list.length > 0 ? <p className="text-xs font-medium text-muted-foreground">{list.length} vendors near you</p> : null}
-        {list.map((vendor) => <VendorCard key={vendor.id} vendor={vendor} />)}
+        <div className="flex flex-col gap-4 lg:grid lg:grid-cols-2 xl:grid-cols-3">
+          {!vendorsError && !vendorsLoading && list.map((vendor, index) => <VendorCard key={vendor.id} vendor={vendor} priority={index === 0} />)}
+        </div>
         {!vendorsError && !vendorsLoading && list.length === 0 ? (
           <div className="flex flex-col items-center gap-2 py-16 text-center">
             <X className="h-8 w-8 text-muted-foreground" />

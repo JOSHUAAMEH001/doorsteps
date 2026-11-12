@@ -14,10 +14,10 @@ export function SplashScreen() {
 
   return (
     <div className="relative flex h-full flex-col items-center justify-center bg-brand px-8 text-center">
-      <div className="animate-scale-in">
+      <div>
         <LogoMark className="h-20 w-20 bg-brand-foreground text-brand" />
       </div>
-      <div className="mt-6 animate-fade-in-up">
+      <div className="mt-6">
         <h1 className="text-3xl font-extrabold tracking-tight text-brand-foreground">
           Doorsteps
         </h1>

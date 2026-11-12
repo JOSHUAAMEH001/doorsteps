@@ -8,7 +8,6 @@ import { getMenuItems } from "@/app/actions/catalog"
 import { formatNaira, type Product } from "@/lib/data"
 import { useApp } from "@/lib/store"
 import { cn } from "@/lib/utils"
-import { LoadingState } from "@/components/app/ui"
 
 export function VendorScreen() {
   const { params, back, navigate, addToCart, vendors } = useApp()
@@ -46,7 +45,7 @@ export function VendorScreen() {
     <div className="pb-8">
       {/* Banner */}
       <div className="relative h-52 w-full">
-        <CatalogImage name={vendor.name} imageUrl={vendor.image} sizes="420px" priority fallbackClassName="text-2xl" />
+        <CatalogImage name={vendor.name} imageUrl={vendor.image} sizes="(min-width: 1024px) 720px, 100vw" priority fallbackClassName="text-2xl" />
         <div className="absolute inset-0 bg-gradient-to-t from-foreground/60 to-transparent" />
         <div className="absolute inset-x-0 top-0 flex items-center justify-between p-4">
           <button
@@ -122,13 +121,27 @@ export function VendorScreen() {
       {/* Products */}
       <div className="px-5 pt-5">
         {menuError ? <p role="alert" className="py-12 text-center text-sm text-muted-foreground">Could not load. Please refresh.</p> : null}
-        {isLoading ? <LoadingState label="Loading menu..." /> : null}
+        {isLoading ? (
+          <div role="status" aria-label="Loading menu items" className="flex flex-col gap-3">
+            <div aria-hidden="true" className="h-4 w-24 rounded bg-secondary" />
+            {Array.from({ length: 4 }, (_, index) => (
+              <div key={index} aria-hidden="true" className="flex gap-3 rounded-3xl border border-border bg-card p-3">
+                <div className="flex flex-1 flex-col gap-3 py-2">
+                  <div className="h-4 w-3/4 rounded bg-secondary" />
+                  <div className="h-3 w-full rounded bg-secondary" />
+                  <div className="h-3 w-1/3 rounded bg-secondary" />
+                </div>
+                <div className="size-24 shrink-0 rounded-2xl bg-secondary" />
+              </div>
+            ))}
+          </div>
+        ) : null}
         {!menuError && !isLoading && groups.length === 0 ? <p className="py-12 text-center text-sm text-muted-foreground">No menu items yet.</p> : null}
         {groups.map(([group, groupItems]) => (
           <section key={group} id={`group-${group}`} className="scroll-mt-32 pb-6">
             <h2 className="mb-3 text-base font-extrabold text-foreground">{group}</h2>
             <div className="space-y-3">
-              {groupItems.map((p) => (
+              {groupItems.map((p, index) => (
                 <div
                   key={p.id}
                   className="flex gap-3 rounded-3xl border border-border bg-card p-3"
@@ -152,7 +165,7 @@ export function VendorScreen() {
                     </p>
                   </button>
                   <div className="relative h-24 w-24 shrink-0">
-                    <CatalogImage name={p.name} imageUrl={p.image} sizes="96px" className="rounded-2xl object-cover" fallbackClassName="text-[10px] leading-tight" />
+                    <CatalogImage name={p.name} imageUrl={p.image} sizes="96px" priority={index === 0} className="rounded-2xl object-cover" fallbackClassName="text-[10px] leading-tight" />
                     <button
                       type="button"
                       onClick={() => addToCart(p, 1)}

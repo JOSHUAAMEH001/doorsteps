@@ -44,7 +44,7 @@ export function OnboardingScreen() {
 
       <div
         key={index}
-        className="flex flex-1 flex-col items-center justify-center animate-fade-in-up"
+        className="flex flex-1 flex-col items-center justify-center"
       >
         <div className="relative flex h-64 w-64 items-center justify-center rounded-[2rem] bg-secondary">
           <Image

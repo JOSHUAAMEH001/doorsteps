@@ -89,7 +89,7 @@ export function PaymentScreen() {
         </section>
 
         {paymentMethod === "transfer" ? (
-          <div className="animate-fade-in-up rounded-2xl border border-border bg-card p-4">
+          <div className="rounded-2xl border border-border bg-card p-4">
             <p className="text-xs text-muted-foreground">Transfer to</p>
             <p className="mt-1 text-sm font-bold text-foreground">
               Doorsteps Logistics Ltd
@@ -104,7 +104,7 @@ export function PaymentScreen() {
         ) : null}
 
         {paymentMethod === "card" ? (
-          <div className="animate-fade-in-up space-y-3">
+          <div className="space-y-3">
             <input
               value={cardNumber}
               onChange={(event) => setCardNumber(event.target.value)}

@@ -7,7 +7,32 @@ import { formatNaira, type Vendor } from "@/lib/data"
 import { useApp } from "@/lib/store"
 import { cn } from "@/lib/utils"
 
-export function VendorCard({ vendor }: { vendor: Vendor }) {
+export function VendorCardSkeleton() {
+  return (
+    <div aria-hidden="true" className="w-full overflow-hidden rounded-3xl border border-border bg-card">
+      <div className="h-36 w-full bg-secondary" />
+      <div className="flex flex-col gap-3 p-3.5">
+        <div className="h-4 w-2/3 rounded bg-secondary" />
+        <div className="h-3 w-1/3 rounded bg-secondary" />
+        <div className="h-3 w-1/2 rounded bg-secondary" />
+      </div>
+    </div>
+  )
+}
+
+export function VendorTileSkeleton() {
+  return (
+    <div aria-hidden="true" className="w-40 shrink-0 overflow-hidden rounded-3xl border border-border bg-card">
+      <div className="h-24 w-full bg-secondary" />
+      <div className="flex flex-col gap-2 p-3">
+        <div className="h-3 w-4/5 rounded bg-secondary" />
+        <div className="h-3 w-1/2 rounded bg-secondary" />
+      </div>
+    </div>
+  )
+}
+
+export function VendorCard({ vendor, priority = false }: { vendor: Vendor; priority?: boolean }) {
   const { navigate } = useApp()
   return (
     <button
@@ -16,7 +41,7 @@ export function VendorCard({ vendor }: { vendor: Vendor }) {
       className="w-full overflow-hidden rounded-3xl border border-border bg-card text-left transition-transform active:scale-[0.99]"
     >
       <div className="relative h-36 w-full">
-        <CatalogImage name={vendor.name} imageUrl={vendor.image} sizes="420px" />
+        <CatalogImage name={vendor.name} imageUrl={vendor.image} sizes="(min-width: 1024px) 380px, (min-width: 640px) 50vw, 100vw" priority={priority} />
         <span
           className={cn(
             "absolute right-3 top-3 rounded-full px-2.5 py-1 text-[11px] font-bold",
@@ -43,7 +68,7 @@ export function VendorCard({ vendor }: { vendor: Vendor }) {
   )
 }
 
-export function VendorTile({ vendor }: { vendor: Vendor }) {
+export function VendorTile({ vendor, priority = false }: { vendor: Vendor; priority?: boolean }) {
   const { navigate } = useApp()
   return (
     <button
@@ -52,7 +77,7 @@ export function VendorTile({ vendor }: { vendor: Vendor }) {
       className="w-40 shrink-0 overflow-hidden rounded-3xl border border-border bg-card text-left transition-transform active:scale-[0.98]"
     >
       <div className="relative h-24 w-full">
-        <CatalogImage name={vendor.name} imageUrl={vendor.image} sizes="160px" className="object-cover" fallbackClassName="text-sm" />
+        <CatalogImage name={vendor.name} imageUrl={vendor.image} sizes="(min-width: 1024px) 160px, 40vw" priority={priority} className="object-cover" fallbackClassName="text-sm" />
       </div>
       <div className="p-3">
         <h3 className="truncate text-sm font-bold text-foreground">{vendor.name}</h3>
