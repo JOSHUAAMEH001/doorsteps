@@ -25,7 +25,8 @@ export function BottomNav() {
               key={item.screen}
               type="button"
               onClick={() => navigate(item.screen)}
-              className="relative flex flex-1 flex-col items-center gap-1 py-2.5"
+              aria-current={active ? "page" : undefined}
+              className="relative flex flex-1 flex-col items-center gap-1 rounded-2xl py-2.5 transition-colors hover:bg-secondary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
             >
               <span className="relative">
                 <Icon

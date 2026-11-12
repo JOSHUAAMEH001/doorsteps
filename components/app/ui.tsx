@@ -1,6 +1,6 @@
 "use client"
 
-import { ArrowLeft } from "lucide-react"
+import { ArrowLeft, LoaderCircle } from "lucide-react"
 import type { ReactNode } from "react"
 import { useApp } from "@/lib/store"
 import { cn } from "@/lib/utils"
@@ -33,7 +33,7 @@ export function ScreenHeader({
           type="button"
           aria-label="Go back"
           onClick={() => (onBack ? onBack() : back())}
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-secondary text-foreground transition-transform active:scale-90"
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-secondary text-foreground transition-colors hover:bg-brand-soft hover:text-brand focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand active:scale-95"
         >
           <ArrowLeft className="h-5 w-5" />
         </button>
@@ -50,6 +50,21 @@ export function ScreenHeader({
       )}
       {right ? <div className="shrink-0">{right}</div> : null}
     </header>
+  )
+}
+
+export function LoadingState({
+  label,
+  className,
+}: {
+  label: string
+  className?: string
+}) {
+  return (
+    <div role="status" aria-live="polite" className={cn("flex items-center justify-center gap-2 py-8 text-sm font-medium text-muted-foreground", className)}>
+      <LoaderCircle aria-hidden="true" className="size-4 animate-spin text-brand" />
+      <span>{label}</span>
+    </div>
   )
 }
 
@@ -74,7 +89,7 @@ export function PrimaryButton({
       onClick={onClick}
       disabled={disabled}
       className={cn(
-        "flex w-full items-center justify-center gap-2 rounded-2xl px-5 py-3.5 text-sm font-bold transition-all active:scale-[0.98] disabled:opacity-50",
+        "flex w-full items-center justify-center gap-2 rounded-2xl px-5 py-3.5 text-sm font-bold transition-all duration-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-55",
         variant === "solid" &&
           "bg-brand text-brand-foreground shadow-sm shadow-brand/20 hover:brightness-105",
         variant === "outline" &&
@@ -102,7 +117,7 @@ export function Pill({
       type="button"
       onClick={onClick}
       className={cn(
-        "whitespace-nowrap rounded-full border px-4 py-2 text-xs font-semibold transition-colors",
+        "whitespace-nowrap rounded-full border px-4 py-2 text-xs font-semibold transition-colors duration-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand",
         active
           ? "border-brand bg-brand text-brand-foreground"
           : "border-border bg-background text-muted-foreground hover:bg-secondary",
