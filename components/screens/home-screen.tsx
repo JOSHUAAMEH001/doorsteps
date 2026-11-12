@@ -11,7 +11,7 @@ import {
   Truck,
   Utensils,
 } from "lucide-react"
-import { VendorCard, VendorTile } from "@/components/app/cards"
+import { VendorCard, VendorCardSkeleton, VendorTile, VendorTileSkeleton } from "@/components/app/cards"
 import { LoadingState } from "@/components/app/ui"
 import { categories, formatNaira, type CategoryId } from "@/lib/data"
 import { useApp } from "@/lib/store"
@@ -61,7 +61,7 @@ export function HomeScreen() {
         <button
           type="button"
           onClick={() => navigate("vendors", { category: "food" })}
-          className="mt-4 flex w-full items-center gap-3 rounded-2xl bg-background px-4 py-3.5 text-left"
+          className="mt-4 flex w-full items-center gap-3 rounded-2xl bg-background px-4 py-3.5 text-left lg:hidden"
         >
           <Search className="h-5 w-5 text-muted-foreground" />
           <span className="text-sm text-muted-foreground">
@@ -145,10 +145,10 @@ export function HomeScreen() {
         </div>
         <div className="no-scrollbar flex gap-3 overflow-x-auto px-5 pt-3">
           {vendorsError ? <p role="alert" className="px-1 py-4 text-sm text-muted-foreground">Could not load. Please refresh.</p> : null}
-          {vendorsLoading ? <LoadingState label="Finding nearby vendors..." className="px-1 py-4" /> : null}
+          {vendorsLoading ? Array.from({ length: 4 }, (_, index) => <VendorTileSkeleton key={index} />) : null}
           {!vendorsLoading && !vendorsError && vendors.length === 0 ? <p className="px-1 py-4 text-sm text-muted-foreground">No active vendors available yet.</p> : null}
-          {!vendorsError && vendors.slice(0, 4).map((v) => (
-            <VendorTile key={v.id} vendor={v} />
+          {!vendorsError && vendors.slice(0, 4).map((v, index) => (
+            <VendorTile key={v.id} vendor={v} priority={index === 0} />
           ))}
         </div>
       </section>
@@ -161,12 +161,13 @@ export function HomeScreen() {
         />
         <div className="mt-3 space-y-4">
           {vendorsError ? <p role="alert" className="text-sm text-muted-foreground">Could not load. Please refresh.</p> : null}
+          {vendorsLoading ? <div className="flex flex-col gap-4"><VendorCardSkeleton /><VendorCardSkeleton /><VendorCardSkeleton /></div> : null}
           {!vendorsError && !vendorsLoading && vendors.filter((v) => v.category === "food").length === 0 ? <p className="text-sm text-muted-foreground">No active vendors available yet.</p> : null}
-          {!vendorsError && vendors
+          {!vendorsError && !vendorsLoading && vendors
             .filter((v) => v.category === "food")
             .slice(0, 3)
-            .map((v) => (
-              <VendorCard key={v.id} vendor={v} />
+            .map((v, index) => (
+              <VendorCard key={v.id} vendor={v} priority={index === 0} />
             ))}
         </div>
       </section>

@@ -2,7 +2,6 @@
 
 import { ArrowLeft, Minus, Plus } from "lucide-react"
 import { CatalogImage } from "@/components/app/catalog-image"
-import { LoadingState } from "@/components/app/ui"
 import { useState } from "react"
 import useSWR from "swr"
 import { getMenuItem } from "@/app/actions/catalog"
@@ -28,7 +27,16 @@ export function ProductScreen() {
   const [note, setNote] = useState("")
 
   if (error) return <div role="alert" className="p-6 text-sm text-muted-foreground">Could not load. Please refresh.</div>
-  if (isLoading) return <LoadingState label="Loading menu item..." className="min-h-48" />
+  if (isLoading) return (
+    <div role="status" aria-label="Loading menu item" className="flex min-h-full flex-col">
+      <div aria-hidden="true" className="h-72 w-full bg-secondary" />
+      <div aria-hidden="true" className="flex flex-col gap-4 px-5 pt-5">
+        <div className="h-6 w-2/3 rounded bg-secondary" />
+        <div className="h-4 w-1/3 rounded bg-secondary" />
+        <div className="h-20 w-full rounded-2xl bg-secondary" />
+      </div>
+    </div>
+  )
   if (!product) return <div className="p-6 text-sm text-muted-foreground">Menu item not found.</div>
 
   const total = product.price * qty
@@ -38,7 +46,7 @@ export function ProductScreen() {
       <div className="no-scrollbar flex-1 overflow-y-auto pb-4">
         {/* Image */}
         <div className="relative h-72 w-full bg-secondary">
-          <CatalogImage name={product.name} imageUrl={product.image} sizes="420px" priority fallbackClassName="text-2xl" />
+          <CatalogImage name={product.name} imageUrl={product.image} sizes="(min-width: 1024px) 720px, 100vw" priority fallbackClassName="text-2xl" />
           <button
             type="button"
             onClick={back}

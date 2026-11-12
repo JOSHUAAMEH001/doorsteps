@@ -41,6 +41,7 @@ export interface NavParams {
   productId?: string
   category?: CategoryId
   orderCode?: string
+  searchQuery?: string
 }
 
 export interface CartLine {
@@ -100,7 +101,7 @@ interface AppState {
 
 const AppContext = createContext<AppState | null>(null)
 
-export function AppProvider({ children, initialScreen = "splash" }: { children: ReactNode; initialScreen?: Screen }) {
+export function AppProvider({ children, initialScreen = "splash", initialVendors = [] }: { children: ReactNode; initialScreen?: Screen; initialVendors?: Awaited<ReturnType<typeof getVendors>> }) {
   const [screen, setScreen] = useState<Screen>(initialScreen)
   const [params, setParams] = useState<NavParams>({})
   const [history, setHistory] = useState<{ screen: Screen; params: NavParams }[]>([])
@@ -108,9 +109,12 @@ export function AppProvider({ children, initialScreen = "splash" }: { children: 
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cod")
   const [deliveryDetails, setDeliveryDetails] = useState<AppState["deliveryDetails"]>(null)
   const [orderId, setOrderId] = useState<string | null>(null)
-  const [userName, setUserName] = useState("Chidera")
+  const [userName, setUserName] = useState("Customer")
   const [isGuest, setIsGuest] = useState(false)
-  const { data: vendorRows = [], error: vendorsError, isLoading: vendorsLoading } = useSWR("vendors", () => getVendors())
+  const { data: vendorRows = [], error: vendorsError, isLoading: vendorsLoading } = useSWR("vendors", () => getVendors(), {
+    fallbackData: initialVendors,
+    revalidateOnMount: initialVendors.length === 0,
+  })
   const { data: orderRows = [], isLoading: ordersLoading } = useSWR("my-orders", getMyOrders)
   const { data: profileResult } = useSWR("current-profile", getCurrentProfile)
   const role = profileResult?.data?.role ?? null
@@ -242,7 +246,7 @@ export function AppProvider({ children, initialScreen = "splash" }: { children: 
     setPaymentMethod,
     deliveryDetails,
     setDeliveryDetails,
-    userName,
+    userName: displayName,
     isGuest,
     role,
     isAdmin: role === "admin",

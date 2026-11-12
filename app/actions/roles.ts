@@ -7,13 +7,13 @@ export type SafeResult<T> = { data: T; error: string | null }
 
 async function client() { return createClient() }
 
-export async function getCurrentProfile(): Promise<SafeResult<{ id: string; email: string; role: Role; vendor_id: string | null } | null>> {
+export async function getCurrentProfile(): Promise<SafeResult<{ id: string; email: string; full_name: string | null; role: Role; vendor_id: string | null } | null>> {
   try {
     const supabase = await client()
     const { data: { user }, error: authError } = await supabase.auth.getUser()
     if (authError || !user) return { data: null, error: authError?.message ?? null }
-    const { data, error } = await supabase.from('profiles').select('id, email, role, vendor_id').eq('id', user.id).maybeSingle()
-    return { data: data as { id: string; email: string; role: Role; vendor_id: string | null } | null, error: error?.message ?? null }
+    const { data, error } = await supabase.from('profiles').select('id, email, full_name, role, vendor_id').eq('id', user.id).maybeSingle()
+    return { data: data as { id: string; email: string; full_name: string | null; role: Role; vendor_id: string | null } | null, error: error?.message ?? null }
   } catch (error) { return { data: null, error: error instanceof Error ? error.message : String(error) } }
 }
 
@@ -30,12 +30,14 @@ export async function getRiderOrders(): Promise<SafeResult<unknown[]>> {
     const supabase = await client()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return { data: [], error: 'Please log in again.' }
-    const { data: declines, error: declineError } = await supabase.from('order_declines').select('order_id').eq('rider_id', user.id)
+    const [declinesResult, ordersResult] = await Promise.all([
+      supabase.from('order_declines').select('order_id').eq('rider_id', user.id),
+      supabase.from('orders').select('id, order_code, created_at, customer_name, phone, pickup_location, dropoff_location, status, total, delivery_fee, rider_id, rider_earning, order_items(item_name, unit_price, quantity), vendors(name)').order('created_at', { ascending: false }).or(`rider_id.eq.${user.id},and(status.eq.confirmed,rider_id.is.null)`),
+    ])
+    const { data: declines, error: declineError } = declinesResult
     if (declineError) return { data: [], error: declineError.message }
     const declinedIds = (declines ?? []).map((row) => row.order_id)
-    let query = supabase.from('orders').select('id, order_code, created_at, customer_name, phone, pickup_location, dropoff_location, status, total, delivery_fee, rider_id, rider_earning, order_items(item_name, unit_price, quantity), vendors(name)').order('created_at', { ascending: false })
-    query = query.or(`rider_id.eq.${user.id},and(status.eq.confirmed,rider_id.is.null)`)
-    const { data, error } = await query
+    const { data, error } = ordersResult
     if (error) return { data: [], error: error.message }
     return { data: (data ?? []).filter((order) => order.rider_id === user.id || !declinedIds.includes(order.id)), error: null }
   } catch (error) { return { data: [], error: error instanceof Error ? error.message : String(error) } }

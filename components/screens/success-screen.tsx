@@ -9,7 +9,7 @@ export function SuccessScreen() {
 
   return (
     <div className="flex h-full flex-col items-center justify-center px-8 text-center">
-      <div className="animate-scale-in">
+      <div>
         <span className="relative flex h-24 w-24 items-center justify-center rounded-full bg-brand-soft">
           <span className="flex h-16 w-16 items-center justify-center rounded-full bg-brand text-brand-foreground">
             <Check className="h-8 w-8" strokeWidth={3} />
