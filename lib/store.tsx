@@ -62,6 +62,7 @@ interface AppState {
   vendorsLoading: boolean
   vendorsError: unknown
   orders: Order[]
+  ordersLoading: boolean
   cart: CartLine[]
   addToCart: (product: Product, qty: number, note?: string) => void
   updateQty: (productId: string, qty: number) => void
@@ -99,8 +100,8 @@ interface AppState {
 
 const AppContext = createContext<AppState | null>(null)
 
-export function AppProvider({ children }: { children: ReactNode }) {
-  const [screen, setScreen] = useState<Screen>("splash")
+export function AppProvider({ children, initialScreen = "splash" }: { children: ReactNode; initialScreen?: Screen }) {
+  const [screen, setScreen] = useState<Screen>(initialScreen)
   const [params, setParams] = useState<NavParams>({})
   const [history, setHistory] = useState<{ screen: Screen; params: NavParams }[]>([])
   const [cart, setCart] = useState<CartLine[]>([])
@@ -110,7 +111,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [userName, setUserName] = useState("Chidera")
   const [isGuest, setIsGuest] = useState(false)
   const { data: vendorRows = [], error: vendorsError, isLoading: vendorsLoading } = useSWR("vendors", () => getVendors())
-  const { data: orderRows = [] } = useSWR("my-orders", getMyOrders)
+  const { data: orderRows = [], isLoading: ordersLoading } = useSWR("my-orders", getMyOrders)
   const { data: profileResult } = useSWR("current-profile", getCurrentProfile)
   const role = profileResult?.data?.role ?? null
 
@@ -225,6 +226,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     vendorsLoading,
     vendorsError,
     orders,
+    ordersLoading,
     cart,
     addToCart,
     updateQty,

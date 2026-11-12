@@ -91,6 +91,21 @@
   }
 }
 
+@layer base {
+  :where(button, a, input, textarea, select):focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+
+  :where(button, a, input, textarea, select) {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  :where(input, textarea, select) {
+    transition: border-color 160ms ease, box-shadow 160ms ease, background-color 160ms ease;
+  }
+}
+
 @layer utilities {
   .no-scrollbar::-webkit-scrollbar {
     display: none;
@@ -129,4 +144,15 @@
 
 .animate-scale-in {
   animation: scale-in 0.3s ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

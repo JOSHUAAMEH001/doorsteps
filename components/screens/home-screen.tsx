@@ -12,6 +12,7 @@ import {
   Utensils,
 } from "lucide-react"
 import { VendorCard, VendorTile } from "@/components/app/cards"
+import { LoadingState } from "@/components/app/ui"
 import { categories, formatNaira, type CategoryId } from "@/lib/data"
 import { useApp } from "@/lib/store"
 
@@ -23,7 +24,7 @@ const categoryIcons: Record<CategoryId, typeof Utensils> = {
 }
 
 export function HomeScreen() {
-  const { navigate, userName, vendors, vendorsLoading, vendorsError, orders, isAdmin } = useApp()
+  const { navigate, userName, vendors, vendorsLoading, vendorsError, orders, ordersLoading, isAdmin } = useApp()
   const activeOrder = orders.find((o) => o.status === "on_the_way")
 
   return (
@@ -144,7 +145,7 @@ export function HomeScreen() {
         </div>
         <div className="no-scrollbar flex gap-3 overflow-x-auto px-5 pt-3">
           {vendorsError ? <p role="alert" className="px-1 py-4 text-sm text-muted-foreground">Could not load. Please refresh.</p> : null}
-          {vendorsLoading ? <p className="px-1 py-4 text-sm text-muted-foreground">Loading vendors...</p> : null}
+          {vendorsLoading ? <LoadingState label="Finding nearby vendors..." className="px-1 py-4" /> : null}
           {!vendorsLoading && !vendorsError && vendors.length === 0 ? <p className="px-1 py-4 text-sm text-muted-foreground">No active vendors available yet.</p> : null}
           {!vendorsError && vendors.slice(0, 4).map((v) => (
             <VendorTile key={v.id} vendor={v} />
@@ -177,7 +178,24 @@ export function HomeScreen() {
           onSeeAll={() => navigate("orders")}
         />
         <div className="mt-3 space-y-3">
-          {orders.slice(0, 2).map((o) => (
+          {ordersLoading ? <LoadingState label="Loading your recent orders..." className="py-6" /> : null}
+          {!ordersLoading && orders.length === 0 ? (
+            <button
+              type="button"
+              onClick={() => navigate("vendors", { category: "food" })}
+              className="flex w-full items-center gap-3 rounded-3xl border border-dashed border-border bg-card p-4 text-left transition hover:border-brand/40 hover:bg-brand-soft/40 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+            >
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-brand-soft text-brand">
+                <Utensils className="h-5 w-5" />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-bold text-foreground">Ready for your first delivery?</span>
+                <span className="mt-1 block text-xs text-muted-foreground">Browse nearby vendors to get started.</span>
+              </span>
+              <ChevronRight aria-hidden="true" className="h-5 w-5 shrink-0 text-brand" />
+            </button>
+          ) : null}
+          {!ordersLoading ? orders.slice(0, 2).map((o) => (
             <button
               key={o.id}
               type="button"
@@ -186,22 +204,18 @@ export function HomeScreen() {
                   ? navigate("tracking", { vendorId: o.vendorId ?? undefined, orderCode: o.id })
                   : navigate("orders")
               }
-              className="flex w-full items-center gap-3 rounded-3xl border border-border bg-card p-3.5 text-left"
+              className="flex w-full items-center gap-3 rounded-3xl border border-border bg-card p-3.5 text-left transition hover:border-brand/30 hover:bg-secondary/60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
             >
               <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-secondary text-foreground">
                 <Utensils className="h-5 w-5" />
               </span>
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-bold text-foreground">
-                  {o.vendorName}
-                </p>
-                <p className="truncate text-xs text-muted-foreground">
-                  {o.items.length} item(s) • {formatNaira(o.total)}
-                </p>
-              </div>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm font-bold text-foreground">{o.vendorName}</span>
+                <span className="block truncate text-xs text-muted-foreground">{o.items.length} item(s) • {formatNaira(o.total)}</span>
+              </span>
               <span className="text-xs font-semibold text-brand">Reorder</span>
             </button>
-          ))}
+          )) : null}
         </div>
       </section>
     </div>

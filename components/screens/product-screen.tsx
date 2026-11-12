@@ -2,6 +2,7 @@
 
 import { ArrowLeft, Minus, Plus } from "lucide-react"
 import { CatalogImage } from "@/components/app/catalog-image"
+import { LoadingState } from "@/components/app/ui"
 import { useState } from "react"
 import useSWR from "swr"
 import { getMenuItem } from "@/app/actions/catalog"
@@ -27,7 +28,7 @@ export function ProductScreen() {
   const [note, setNote] = useState("")
 
   if (error) return <div role="alert" className="p-6 text-sm text-muted-foreground">Could not load. Please refresh.</div>
-  if (isLoading) return <div className="p-6 text-sm text-muted-foreground">Loading item...</div>
+  if (isLoading) return <LoadingState label="Loading menu item..." className="min-h-48" />
   if (!product) return <div className="p-6 text-sm text-muted-foreground">Menu item not found.</div>
 
   const total = product.price * qty

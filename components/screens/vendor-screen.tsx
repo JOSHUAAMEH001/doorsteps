@@ -8,6 +8,7 @@ import { getMenuItems } from "@/app/actions/catalog"
 import { formatNaira, type Product } from "@/lib/data"
 import { useApp } from "@/lib/store"
 import { cn } from "@/lib/utils"
+import { LoadingState } from "@/components/app/ui"
 
 export function VendorScreen() {
   const { params, back, navigate, addToCart, vendors } = useApp()
@@ -121,7 +122,7 @@ export function VendorScreen() {
       {/* Products */}
       <div className="px-5 pt-5">
         {menuError ? <p role="alert" className="py-12 text-center text-sm text-muted-foreground">Could not load. Please refresh.</p> : null}
-        {isLoading ? <p className="py-12 text-center text-sm text-muted-foreground">Loading menu...</p> : null}
+        {isLoading ? <LoadingState label="Loading menu..." /> : null}
         {!menuError && !isLoading && groups.length === 0 ? <p className="py-12 text-center text-sm text-muted-foreground">No menu items yet.</p> : null}
         {groups.map(([group, groupItems]) => (
           <section key={group} id={`group-${group}`} className="scroll-mt-32 pb-6">

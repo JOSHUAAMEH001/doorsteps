@@ -4,7 +4,7 @@ import { Search, SlidersHorizontal, X } from "lucide-react"
 import { useMemo, useState } from "react"
 import useSWR from "swr"
 import { getVendors } from "@/app/actions/catalog"
-import { ScreenHeader, Pill } from "@/components/app/ui"
+import { LoadingState, ScreenHeader, Pill } from "@/components/app/ui"
 import { VendorCard } from "@/components/app/cards"
 import { categories, type CategoryId, type Vendor } from "@/lib/data"
 import { useApp } from "@/lib/store"
@@ -102,7 +102,7 @@ export function VendorsScreen() {
 
       <div className="space-y-4 px-5 pt-4">
         {vendorsError ? <p role="alert" className="py-8 text-center text-sm text-muted-foreground">Could not load. Please refresh.</p> : null}
-        {vendorsLoading ? <p className="py-8 text-center text-sm text-muted-foreground">Loading vendors...</p> : null}
+        {vendorsLoading ? <LoadingState label="Finding nearby vendors..." /> : null}
         {!vendorsError && !vendorsLoading && list.length > 0 ? <p className="text-xs font-medium text-muted-foreground">{list.length} vendors near you</p> : null}
         {list.map((vendor) => <VendorCard key={vendor.id} vendor={vendor} />)}
         {!vendorsError && !vendorsLoading && list.length === 0 ? (
