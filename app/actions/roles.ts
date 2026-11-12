@@ -13,6 +13,11 @@ export async function getCurrentProfile(): Promise<SafeResult<{ id: string; emai
     const { data: { user }, error: authError } = await supabase.auth.getUser()
     if (authError || !user) return { data: null, error: authError?.message ?? null }
     const { data, error } = await supabase.from('profiles').select('id, email, full_name, role, vendor_id').eq('id', user.id).maybeSingle()
+    if (error?.code === '42703' && error.message.toLowerCase().includes('full_name')) {
+      const { data: profileWithoutName, error: fallbackError } = await supabase.from('profiles').select('id, email, role, vendor_id').eq('id', user.id).maybeSingle()
+      const fallbackData = profileWithoutName ? { ...profileWithoutName, full_name: null } : null
+      return { data: fallbackData as { id: string; email: string; full_name: string | null; role: Role; vendor_id: string | null } | null, error: fallbackError?.message ?? null }
+    }
     return { data: data as { id: string; email: string; full_name: string | null; role: Role; vendor_id: string | null } | null, error: error?.message ?? null }
   } catch (error) { return { data: null, error: error instanceof Error ? error.message : String(error) } }
 }
