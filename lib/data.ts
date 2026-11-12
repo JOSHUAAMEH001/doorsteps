@@ -28,7 +28,7 @@ export interface OrderItem {
   price: number
 }
 
-export type OrderStatus = "preparing" | "on_the_way" | "delivered" | "cancelled"
+export type OrderStatus = "preparing" | "assigned" | "picked_up" | "on_the_way" | "delivered" | "cancelled"
 
 export interface Order {
   id: string

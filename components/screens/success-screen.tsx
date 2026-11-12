@@ -38,7 +38,7 @@ export function SuccessScreen() {
       </div>
 
       <div className="mt-8 w-full max-w-xs space-y-3">
-        <PrimaryButton onClick={() => navigate("tracking", { vendorId: params.vendorId })}>
+        <PrimaryButton onClick={() => navigate("tracking", { orderCode: params.orderCode, vendorId: params.vendorId })}>
           Track your order
         </PrimaryButton>
         <PrimaryButton variant="outline" onClick={() => navigate("home")}>
