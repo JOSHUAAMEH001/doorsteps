@@ -118,6 +118,9 @@ export function AppProvider({ children, initialScreen = "splash", initialVendors
   const { data: orderRows = [], isLoading: ordersLoading } = useSWR("my-orders", getMyOrders)
   const { data: profileResult } = useSWR("current-profile", getCurrentProfile)
   const role = profileResult?.data?.role ?? null
+  const profile = profileResult?.data
+  const profileName = profile?.full_name?.trim() || profile?.email?.split("@")[0]?.trim()
+  const displayName = profile ? profileName || "Customer" : userName
 
   const vendors = useMemo<Vendor[]>(
     () => vendorRows.map((vendor) => ({

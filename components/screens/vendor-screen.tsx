@@ -126,7 +126,7 @@ export function VendorScreen() {
             <div aria-hidden="true" className="h-4 w-24 rounded bg-secondary" />
             {Array.from({ length: 4 }, (_, index) => (
               <div key={index} aria-hidden="true" className="flex gap-3 rounded-3xl border border-border bg-card p-3">
-                <div className="flex-1 space-y-3 py-2">
+                <div className="flex flex-1 flex-col gap-3 py-2">
                   <div className="h-4 w-3/4 rounded bg-secondary" />
                   <div className="h-3 w-full rounded bg-secondary" />
                   <div className="h-3 w-1/3 rounded bg-secondary" />

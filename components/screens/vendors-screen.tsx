@@ -1,7 +1,7 @@
 "use client"
 
 import { Search, SlidersHorizontal, X } from "lucide-react"
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import useSWR from "swr"
 import { getVendors } from "@/app/actions/catalog"
 import { ScreenHeader, Pill } from "@/components/app/ui"
@@ -38,6 +38,9 @@ export function VendorsScreen() {
   })), [vendorRows])
   const [query, setQuery] = useState(() => params.searchQuery ?? "")
   const [sort, setSort] = useState<SortKey>("recommended")
+  useEffect(() => {
+    setQuery(params.searchQuery ?? "")
+  }, [params.searchQuery])
   const [showFilter, setShowFilter] = useState(false)
   const activeCategory = categories.find((item) => item.id === category)
 
