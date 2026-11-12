@@ -19,6 +19,7 @@ import {
 import { formatNaira } from "@/lib/data"
 import { useApp } from "@/lib/store"
 import { LoadingState, PrimaryButton, ScreenHeader } from "@/components/app/ui"
+import { useRiderLocationSharing } from "@/components/screens/use-rider-location-sharing"
 
 const statuses = ["pending", "confirmed", "assigned", "picked_up", "delivered", "cancelled"] as const
 const cellClass = "whitespace-nowrap px-4 py-3 text-sm"
@@ -150,6 +151,8 @@ function RiderDashboard() {
   const earningsRows: any[] = earnings?.data as any[] ?? []
   const today = new Date().toISOString().slice(0, 10)
   const todayEarnings = earningsRows.find((row) => row.day === today)
+  const trackableOrders = mine.filter((order) => ["assigned", "picked_up"].includes(order.status))
+  const locationSharing = useRiderLocationSharing(trackableOrders, { isLoading, hasError: Boolean(data?.error) })
 
   async function run(id: string, action: () => Promise<{ error: string | null }>) {
     setBusy(id)
@@ -191,7 +194,7 @@ function RiderDashboard() {
         ) : isLoading ? <TableSkeleton columns={6} /> : visibleOrders.length === 0 ? <p className="py-16 text-center text-sm text-muted-foreground">No orders yet.</p> : (
           <TableFrame minWidth="min-w-[1050px]">
             <thead><tr className="border-b border-border bg-secondary/50"><th className={headerClass}>Order</th><th className={headerClass}>Vendor</th><th className={headerClass}>Items</th><th className={headerClass}>Pickup</th><th className={headerClass}>Dropoff</th><th className={headerClass}>Total</th><th className={headerClass}>Status</th><th className={headerClass}>Actions</th></tr></thead>
-            <tbody>{visibleOrders.map((order) => <RiderOrderRow key={order.id} order={order} busy={busy === order.id} onAccept={() => run(order.id, () => acceptRiderOrder(order.id))} onDecline={() => run(order.id, () => declineRiderOrder(order.id))} onLock={() => run(order.id, () => updateRiderOrderStatus(order.id, "picked_up"))} onDeliver={() => run(order.id, () => updateRiderOrderStatus(order.id, "delivered"))} />)}</tbody>
+            <tbody>{visibleOrders.map((order) => <RiderOrderRow key={order.id} order={order} busy={busy === order.id} isSharingLocation={locationSharing.sharingOrderId === order.id} isStartingLocation={locationSharing.isStarting && locationSharing.statusOrderId === order.id} locationStatus={locationSharing.statusOrderId === order.id ? locationSharing.statusMessage : null} locationStatusIsError={locationSharing.statusOrderId === order.id && locationSharing.statusIsError} lastLocationUpdate={locationSharing.sharingOrderId === order.id ? locationSharing.lastUpdatedAt : null} onToggleLocation={() => locationSharing.toggleSharing(order.id)} onAccept={() => run(order.id, () => acceptRiderOrder(order.id))} onDecline={() => run(order.id, () => declineRiderOrder(order.id))} onLock={() => run(order.id, () => updateRiderOrderStatus(order.id, "picked_up"))} onDeliver={() => run(order.id, () => updateRiderOrderStatus(order.id, "delivered"))} />)}</tbody>
           </TableFrame>
         )}
       </div>
@@ -199,8 +202,15 @@ function RiderDashboard() {
   )
 }
 
-function RiderOrderRow({ order, busy, onAccept, onDecline, onLock, onDeliver }: { order: any; busy: boolean; onAccept: () => void; onDecline: () => void; onLock: () => void; onDeliver: () => void }) {
+function RiderOrderRow({ order, busy, isSharingLocation, isStartingLocation, locationStatus, locationStatusIsError, lastLocationUpdate, onToggleLocation, onAccept, onDecline, onLock, onDeliver }: { order: any; busy: boolean; isSharingLocation: boolean; isStartingLocation: boolean; locationStatus: string | null; locationStatusIsError: boolean; lastLocationUpdate: Date | null; onToggleLocation: () => void; onAccept: () => void; onDecline: () => void; onLock: () => void; onDeliver: () => void }) {
   const vendorName = Array.isArray(order.vendors) ? order.vendors[0]?.name : order.vendors?.name
+  const canShareLocation = ["assigned", "picked_up"].includes(order.status) && Boolean(order.rider_id)
+  const locationStatusText = locationStatus ?? (isSharingLocation
+    ? lastLocationUpdate
+      ? `Sharing location · Updated at ${lastLocationUpdate.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`
+      : "Sharing location · Waiting for GPS…"
+    : null)
+
   return (
     <tr className="border-b border-border last:border-0">
       <td className={`${cellClass} font-bold`}>{order.order_code}</td>
@@ -210,11 +220,32 @@ function RiderOrderRow({ order, busy, onAccept, onDecline, onLock, onDeliver }: 
       <td className={`${cellClass} max-w-48 whitespace-normal`}>{order.dropoff_location}</td>
       <td className={`${cellClass} font-bold`}>{formatNaira(order.total)}</td>
       <td className={`${cellClass} capitalize`}>{order.status.replace("_", " ")}</td>
-      <td className={cellClass}>
-        <div className="flex gap-2">
-          {order.status === "confirmed" && !order.rider_id ? <><PrimaryButton disabled={busy} onClick={onAccept} className="h-9 min-w-20 px-3 text-xs">Accept</PrimaryButton><button disabled={busy} onClick={onDecline} className="rounded-lg bg-destructive/10 px-3 py-2 text-xs font-bold text-destructive">Decline</button></> : null}
-          {order.status === "assigned" ? <PrimaryButton disabled={busy} onClick={onLock} className="h-9 min-w-20 px-3 text-xs">Lock in</PrimaryButton> : null}
-          {order.status === "picked_up" ? <PrimaryButton disabled={busy} onClick={onDeliver} className="h-9 min-w-28 px-3 text-xs">Mark delivered</PrimaryButton> : null}
+      <td className={`${cellClass} min-w-64`}>
+        <div className="flex flex-col gap-2">
+          <div className="flex gap-2">
+            {order.status === "confirmed" && !order.rider_id ? <><PrimaryButton disabled={busy} onClick={onAccept} className="h-9 min-w-20 px-3 text-xs">Accept</PrimaryButton><button disabled={busy} onClick={onDecline} className="rounded-lg bg-destructive/10 px-3 py-2 text-xs font-bold text-destructive">Decline</button></> : null}
+            {order.status === "assigned" ? <PrimaryButton disabled={busy} onClick={onLock} className="h-9 min-w-20 px-3 text-xs">Lock in</PrimaryButton> : null}
+            {order.status === "picked_up" ? <PrimaryButton disabled={busy} onClick={onDeliver} className="h-9 min-w-28 px-3 text-xs">Mark delivered</PrimaryButton> : null}
+          </div>
+          {canShareLocation ? (
+            <div className="flex flex-col gap-1">
+              <button
+                type="button"
+                role="switch"
+                aria-checked={isSharingLocation}
+                aria-label={`${isSharingLocation ? "Stop sharing location for" : "Share my location for"} order ${order.order_code}`}
+                disabled={isStartingLocation}
+                onClick={onToggleLocation}
+                className="inline-flex min-h-10 items-center gap-2 self-start rounded-xl px-2 text-xs font-semibold text-foreground transition-colors hover:bg-secondary disabled:cursor-wait disabled:opacity-60"
+              >
+                <span aria-hidden="true" className={`relative h-5 w-9 rounded-full transition-colors ${isSharingLocation ? "bg-brand" : "bg-muted-foreground/30"}`}>
+                  <span className={`absolute top-0.5 size-4 rounded-full bg-background shadow-sm transition-transform ${isSharingLocation ? "translate-x-4" : "translate-x-0.5"}`} />
+                </span>
+                Share my location
+              </button>
+              {locationStatusText ? <p role={locationStatusIsError ? "alert" : "status"} aria-live="polite" className={`px-2 text-[11px] ${locationStatusIsError ? "text-destructive" : "text-muted-foreground"}`}>{locationStatusText}</p> : null}
+            </div>
+          ) : null}
         </div>
       </td>
     </tr>

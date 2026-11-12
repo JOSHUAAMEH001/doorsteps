@@ -1,15 +1,32 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import dynamic from "next/dynamic"
 import Image from "next/image"
+import useSWR from "swr"
 import { Phone, MessageCircle, MapPin } from "lucide-react"
+import { getCustomerOrderForTracking } from "@/app/actions/tracking"
 import { useApp } from "@/lib/store"
 import { ScreenHeader, Rating } from "@/components/app/ui"
 import { orderStatusSteps } from "@/lib/data"
 import { cn } from "@/lib/utils"
 
+const CustomerRiderMap = dynamic(() => import("@/components/screens/customer-rider-map"), {
+  ssr: false,
+  loading: () => <div role="status" className="mx-5 mb-4 flex h-[280px] items-center justify-center rounded-3xl border border-border bg-secondary text-sm text-muted-foreground sm:h-[320px]">Connecting to the live map…</div>,
+})
+
 export function TrackingScreen() {
   const { navigate, params } = useApp()
+  const { data: trackingResult } = useSWR(
+    params.orderCode ? `customer-tracking:${params.orderCode}` : null,
+    () => getCustomerOrderForTracking(params.orderCode ?? ""),
+  )
+  const liveTracking = trackingResult?.data
+  const isRiderTrackingActive = Boolean(
+    liveTracking?.riderId && ["assigned", "picked_up"].includes(liveTracking.status),
+  )
+  const riderName = isRiderTrackingActive ? liveTracking?.riderName ?? "Your rider" : "Emeka Okafor"
   // active step index across the confirmed -> preparing -> on_the_way -> delivered flow
   const [step, setStep] = useState(1)
   const [eta, setEta] = useState(15)
@@ -34,25 +51,28 @@ export function TrackingScreen() {
       <ScreenHeader title="Track order" subtitle={`Order ${params.orderCode ?? ""}`} />
 
       {/* Map */}
-      <div className="relative h-56 w-full overflow-hidden">
-        <Image
-          src="/map-route.png"
-          alt="Live delivery route map"
-          fill
-          className="object-cover"
-        />
-        <div className="absolute inset-0 bg-gradient-to-b from-transparent to-background/30" />
-        {/* animated rider marker */}
-        <div
-          className="absolute left-1/2 top-1/2 flex h-11 w-11 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-brand text-brand-foreground shadow-lg shadow-brand/40 transition-all duration-1000"
-          style={{
-            transform: `translate(calc(-50% + ${step * 8}px), calc(-50% - ${step * 10}px))`,
-          }}
-        >
-          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-brand/40" />
-          <MapPin className="relative h-5 w-5" />
+      {isRiderTrackingActive && liveTracking?.riderId ? (
+        <CustomerRiderMap riderId={liveTracking.riderId} riderName={riderName} />
+      ) : (
+        <div className="relative h-56 w-full overflow-hidden">
+          <Image
+            src="/map-route.png"
+            alt="Delivery route map"
+            fill
+            className="object-cover"
+          />
+          <div className="absolute inset-0 bg-gradient-to-b from-transparent to-background/30" />
+          <div
+            className="absolute left-1/2 top-1/2 flex h-11 w-11 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-brand text-brand-foreground shadow-lg shadow-brand/40 transition-all duration-1000"
+            style={{
+              transform: `translate(calc(-50% + ${step * 8}px), calc(-50% - ${step * 10}px))`,
+            }}
+          >
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-brand/40" />
+            <MapPin className="relative h-5 w-5" />
+          </div>
         </div>
-      </div>
+      )}
 
       <div className="flex-1 space-y-4 p-5">
         {/* ETA card */}
@@ -75,13 +95,13 @@ export function TrackingScreen() {
           <div className="flex items-center gap-3">
             <Image
               src="/rider-avatar.png"
-              alt="Rider Emeka"
+              alt={`${riderName} profile`}
               width={52}
               height={52}
               className="h-13 w-13 rounded-full object-cover"
             />
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-bold text-foreground">Emeka Okafor</p>
+              <p className="text-sm font-bold text-foreground">{riderName}</p>
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
                 <span>Your rider</span>
                 <span aria-hidden>•</span>
