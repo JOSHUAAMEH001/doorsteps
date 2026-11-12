@@ -6,6 +6,34 @@ import { Logo } from "@/components/brand/logo"
 import { PrimaryButton } from "@/components/app/ui"
 import { createClient } from "@/lib/supabase/client"
 
+function getPasswordUpdateErrorMessage(error: unknown) {
+  const authError = (error ?? {}) as { code?: string; message?: string }
+  const code = authError.code?.toLowerCase() ?? ""
+  const message = authError.message?.toLowerCase() ?? ""
+
+  if (code === "same_password" || message.includes("different from the old password")) {
+    return "You cannot use your previous password. Enter a fresh one."
+  }
+  if (
+    code === "weak_password" ||
+    code === "password_too_short" ||
+    (message.includes("password") && (message.includes("weak") || message.includes("at least") || message.includes("minimum")))
+  ) {
+    return "Choose a stronger password with at least 8 characters."
+  }
+  if (
+    code === "session_not_found" ||
+    code === "otp_expired" ||
+    code === "invalid_token" ||
+    message.includes("expired") ||
+    (message.includes("token") && message.includes("invalid"))
+  ) {
+    return "Your reset link has expired. Request a new one to continue."
+  }
+
+  return "We couldn't update your password. Please try again or request a new reset link."
+}
+
 export default function ResetPasswordPage() {
   const [ready, setReady] = useState<"checking" | "ready" | "expired">("checking")
   const [password, setPassword] = useState("")
@@ -54,7 +82,7 @@ export default function ResetPasswordPage() {
     try {
       const { error } = await createClient().auth.updateUser({ password })
       if (error) {
-        setMessage("We couldn't update your password. Request a new reset link.")
+        setMessage(getPasswordUpdateErrorMessage(error))
         return
       }
       setUpdated(true)
