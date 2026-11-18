@@ -90,7 +90,11 @@ function OrderCard({ order, actions }: { order: any; actions?: React.ReactNode }
   )
 }
 
-function VendorDashboard() {
+function AdminPreviewBanner() {
+  return <p role="status" className="mx-5 mt-4 rounded-2xl border border-brand/20 bg-brand-soft px-4 py-3 text-sm font-semibold text-brand">Admin preview. Actions are disabled here.</p>
+}
+
+function VendorDashboard({ previewMode = false }: { previewMode?: boolean }) {
   const { data, mutate, isLoading } = useSWR("role-vendor-orders", getVendorOrders)
   const [busy, setBusy] = useState<string | null>(null)
   const orders = data?.data ?? []
@@ -108,6 +112,7 @@ function VendorDashboard() {
   return (
     <div className="pb-8">
       <ScreenHeader title="Vendor dashboard" subtitle="Manage orders for your shop" />
+      {previewMode ? <AdminPreviewBanner /> : null}
       <MetricRow>
         <Metric label="Total orders" value={String(orders.length)} />
         <Metric label="Needs attention" value={String(pending)} />
@@ -129,7 +134,7 @@ function VendorDashboard() {
                 <td className={`${cellClass} max-w-56 whitespace-normal text-muted-foreground`}>{order.dropoff_location}</td>
                 <td className={`${cellClass} font-bold`}>{formatNaira(order.total)}</td>
                 <td className={`${cellClass} capitalize`}>{order.status.replace("_", " ")}</td>
-                <td className={cellClass}>{order.status === "pending" ? <div className="flex gap-2"><button disabled={busy === order.id} onClick={() => update(order.id, "confirmed")} className="inline-flex items-center gap-1 rounded-lg bg-brand px-3 py-2 text-xs font-bold text-brand-foreground"><Check aria-hidden="true" className="size-3.5" />Confirm</button><button disabled={busy === order.id} onClick={() => update(order.id, "cancelled")} className="inline-flex items-center gap-1 rounded-lg bg-destructive/10 px-3 py-2 text-xs font-bold text-destructive"><CircleX aria-hidden="true" className="size-3.5" />Cancel</button></div> : "—"}</td>
+                <td className={cellClass}>{order.status === "pending" ? <div className="flex gap-2"><button disabled={previewMode || busy === order.id} onClick={() => update(order.id, "confirmed")} className="inline-flex items-center gap-1 rounded-lg bg-brand px-3 py-2 text-xs font-bold text-brand-foreground"><Check aria-hidden="true" className="size-3.5" />Confirm</button><button disabled={previewMode || busy === order.id} onClick={() => update(order.id, "cancelled")} className="inline-flex items-center gap-1 rounded-lg bg-destructive/10 px-3 py-2 text-xs font-bold text-destructive"><CircleX aria-hidden="true" className="size-3.5" />Cancel</button></div> : "—"}</td>
               </tr>
             ))}</tbody>
           </TableFrame>
@@ -139,7 +144,7 @@ function VendorDashboard() {
   )
 }
 
-function RiderDashboard() {
+function RiderDashboard({ previewMode = false }: { previewMode?: boolean }) {
   const [tab, setTab] = useState<"available" | "mine" | "earnings">("available")
   const [actionError, setActionError] = useState<string | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
@@ -168,6 +173,7 @@ function RiderDashboard() {
   return (
     <div className="pb-8">
       <ScreenHeader title="Rider dashboard" subtitle="Deliver orders and track earnings" />
+      {previewMode ? <AdminPreviewBanner /> : null}
       <MetricRow>
         <Metric label="Available orders" value={String(available.length)} />
         <Metric label="My active deliveries" value={String(mine.filter((order) => ["assigned", "picked_up"].includes(order.status)).length)} />
@@ -194,7 +200,7 @@ function RiderDashboard() {
         ) : isLoading ? <TableSkeleton columns={6} /> : visibleOrders.length === 0 ? <p className="py-16 text-center text-sm text-muted-foreground">No orders yet.</p> : (
           <TableFrame minWidth="min-w-[1050px]">
             <thead><tr className="border-b border-border bg-secondary/50"><th className={headerClass}>Order</th><th className={headerClass}>Vendor</th><th className={headerClass}>Items</th><th className={headerClass}>Pickup</th><th className={headerClass}>Dropoff</th><th className={headerClass}>Total</th><th className={headerClass}>Status</th><th className={headerClass}>Actions</th></tr></thead>
-            <tbody>{visibleOrders.map((order) => <RiderOrderRow key={order.id} order={order} busy={busy === order.id} isSharingLocation={locationSharing.sharingOrderId === order.id} isStartingLocation={locationSharing.isStarting && locationSharing.statusOrderId === order.id} locationStatus={locationSharing.statusOrderId === order.id ? locationSharing.statusMessage : null} locationStatusIsError={locationSharing.statusOrderId === order.id && locationSharing.statusIsError} lastLocationUpdate={locationSharing.sharingOrderId === order.id ? locationSharing.lastUpdatedAt : null} onToggleLocation={() => locationSharing.toggleSharing(order.id)} onAccept={() => run(order.id, () => acceptRiderOrder(order.id))} onDecline={() => run(order.id, () => declineRiderOrder(order.id))} onLock={() => run(order.id, () => updateRiderOrderStatus(order.id, "picked_up"))} onDeliver={() => run(order.id, () => updateRiderOrderStatus(order.id, "delivered"))} />)}</tbody>
+            <tbody>{visibleOrders.map((order) => <RiderOrderRow key={order.id} order={order} previewMode={previewMode} busy={previewMode || busy === order.id} isSharingLocation={locationSharing.sharingOrderId === order.id} isStartingLocation={locationSharing.isStarting && locationSharing.statusOrderId === order.id} locationStatus={locationSharing.statusOrderId === order.id ? locationSharing.statusMessage : null} locationStatusIsError={locationSharing.statusOrderId === order.id && locationSharing.statusIsError} lastLocationUpdate={locationSharing.sharingOrderId === order.id ? locationSharing.lastUpdatedAt : null} onToggleLocation={() => { if (!previewMode) locationSharing.toggleSharing(order.id) }} onAccept={() => run(order.id, () => acceptRiderOrder(order.id))} onDecline={() => run(order.id, () => declineRiderOrder(order.id))} onLock={() => run(order.id, () => updateRiderOrderStatus(order.id, "picked_up"))} onDeliver={() => run(order.id, () => updateRiderOrderStatus(order.id, "delivered"))} />)}</tbody>
           </TableFrame>
         )}
       </div>
@@ -202,7 +208,7 @@ function RiderDashboard() {
   )
 }
 
-function RiderOrderRow({ order, busy, isSharingLocation, isStartingLocation, locationStatus, locationStatusIsError, lastLocationUpdate, onToggleLocation, onAccept, onDecline, onLock, onDeliver }: { order: any; busy: boolean; isSharingLocation: boolean; isStartingLocation: boolean; locationStatus: string | null; locationStatusIsError: boolean; lastLocationUpdate: Date | null; onToggleLocation: () => void; onAccept: () => void; onDecline: () => void; onLock: () => void; onDeliver: () => void }) {
+function RiderOrderRow({ order, previewMode, busy, isSharingLocation, isStartingLocation, locationStatus, locationStatusIsError, lastLocationUpdate, onToggleLocation, onAccept, onDecline, onLock, onDeliver }: { order: any; previewMode: boolean; busy: boolean; isSharingLocation: boolean; isStartingLocation: boolean; locationStatus: string | null; locationStatusIsError: boolean; lastLocationUpdate: Date | null; onToggleLocation: () => void; onAccept: () => void; onDecline: () => void; onLock: () => void; onDeliver: () => void }) {
   const vendorName = Array.isArray(order.vendors) ? order.vendors[0]?.name : order.vendors?.name
   const canShareLocation = ["assigned", "picked_up"].includes(order.status) && Boolean(order.rider_id)
   const locationStatusText = locationStatus ?? (isSharingLocation
@@ -234,7 +240,7 @@ function RiderOrderRow({ order, busy, isSharingLocation, isStartingLocation, loc
                 role="switch"
                 aria-checked={isSharingLocation}
                 aria-label={`${isSharingLocation ? "Stop sharing location for" : "Share my location for"} order ${order.order_code}`}
-                disabled={isStartingLocation}
+                disabled={previewMode || isStartingLocation}
                 onClick={onToggleLocation}
                 className="inline-flex min-h-10 items-center gap-2 self-start rounded-xl px-2 text-xs font-semibold text-foreground transition-colors hover:bg-secondary disabled:cursor-wait disabled:opacity-60"
               >
@@ -310,9 +316,10 @@ function AdminDashboard() {
 export function RoleDashboardScreen({ role }: { role: Role }) {
   const { data, isLoading } = useSWR("current-profile", getCurrentProfile)
   if (isLoading) return <LoadingState label="Loading your dashboard..." className="min-h-48" />
-  if (!data?.data || data.data.role !== role) return <p className="p-6 text-sm text-muted-foreground">You don&apos;t have access to this section.</p>
-  if (role === "vendor") return <VendorDashboard />
-  if (role === "rider") return <RiderDashboard />
+  const adminPreview = data?.data?.role === "admin" && (role === "vendor" || role === "rider")
+  if (!data?.data || (data.data.role !== role && !adminPreview)) return <p className="p-6 text-sm text-muted-foreground">You don&apos;t have access to this section.</p>
+  if (role === "vendor") return <VendorDashboard previewMode={adminPreview} />
+  if (role === "rider") return <RiderDashboard previewMode={adminPreview} />
   if (role === "admin") return <AdminDashboard />
   return <CustomerDashboard />
 }

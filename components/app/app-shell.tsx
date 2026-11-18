@@ -1,15 +1,17 @@
 "use client"
 
-import { useState, type FormEvent } from "react"
+import { useEffect, useState, type FormEvent } from "react"
 import {
   Bell,
   Home,
   LogOut,
+  Menu,
   PackageCheck,
   Receipt,
   Search,
   ShoppingCart,
   User,
+  X,
 } from "lucide-react"
 import { useApp, type Screen } from "@/lib/store"
 import { BottomNav } from "@/components/app/bottom-nav"
@@ -43,13 +45,34 @@ const DESKTOP_NAV_SCREENS = new Set<Screen>([
   "adminOrders",
 ])
 
-const primaryItems: { screen: Screen; label: string; icon: typeof Home }[] = [
+type NavigationItem = { screen: Screen; label: string; icon: typeof Home }
+
+const primaryItems: NavigationItem[] = [
   { screen: "home", label: "Home", icon: Home },
   { screen: "orders", label: "Orders", icon: Receipt },
   { screen: "cart", label: "Cart", icon: ShoppingCart },
   { screen: "notifications", label: "Alerts", icon: Bell },
   { screen: "profile", label: "Profile", icon: User },
 ]
+
+function getNavigationItems(role: ReturnType<typeof useApp>["role"]): NavigationItem[] {
+  const roleItem = role === "admin"
+    ? { screen: "adminDashboard" as const, label: "Admin panel", icon: PackageCheck }
+    : role === "vendor"
+      ? { screen: "vendorDashboard" as const, label: "Vendor dashboard", icon: PackageCheck }
+      : role === "rider"
+        ? { screen: "riderDashboard" as const, label: "Rider dashboard", icon: PackageCheck }
+        : null
+  const items = roleItem ? [...primaryItems, roleItem] : [...primaryItems]
+  if (role === "admin") {
+    items.push(
+      { screen: "vendorDashboard", label: "Vendor view", icon: PackageCheck },
+      { screen: "riderDashboard", label: "Rider view", icon: PackageCheck },
+      { screen: "orders", label: "Customer view", icon: User },
+    )
+  }
+  return items
+}
 
 export function AppShell() {
   const { screen, role } = useApp()
@@ -109,6 +132,7 @@ export function AppShell() {
     <div className="flex min-h-0 flex-1">
       {showDesktopNav ? <DesktopSidebar /> : null}
       <div className={cn("flex min-h-0 min-w-0 flex-1 flex-col", showDesktopNav && "lg:ml-[240px]")}>
+        {showDesktopNav ? <MobileHeader /> : null}
         {showDesktopNav ? <DesktopSearchBar /> : null}
         <main
           id="app-scroll"
@@ -128,35 +152,23 @@ export function AppShell() {
   )
 }
 
-function DesktopSidebar() {
+function NavigationItems({ onNavigate }: { onNavigate: () => void }) {
   const { screen, role, navigate, cartCount } = useApp()
-  const roleItem = role === "admin"
-    ? { screen: "adminDashboard" as const, label: "Admin panel" }
-    : role === "vendor"
-      ? { screen: "vendorDashboard" as const, label: "Vendor dashboard" }
-      : role === "rider"
-        ? { screen: "riderDashboard" as const, label: "Rider dashboard" }
-        : null
-
   return (
-    <aside className="fixed inset-y-0 left-0 z-40 hidden w-[240px] flex-col border-r border-border bg-background px-4 py-6 lg:flex">
-      <button type="button" onClick={() => navigate("home")} aria-label="DOORS home" className="mb-8 flex items-center gap-3 px-2 text-left">
-        <LogoMark className="size-10 shrink-0" />
-        <span className="text-lg font-extrabold tracking-[0.08em] text-foreground">DOORS</span>
-      </button>
+    <>
       <nav aria-label="Main navigation" className="flex flex-col gap-1.5">
-        {primaryItems.map((item) => {
+        {getNavigationItems(role).map((item) => {
           const Icon = item.icon
           const active = screen === item.screen || (item.screen === "orders" && screen === "adminOrders")
           return (
             <button
-              key={item.screen}
+              key={`${item.screen}-${item.label}`}
               type="button"
-              onClick={() => navigate(item.screen)}
+              onClick={() => { navigate(item.screen); onNavigate() }}
               aria-current={active ? "page" : undefined}
               className={cn(
                 "flex min-h-11 items-center gap-3 rounded-xl px-3 text-left text-sm font-semibold transition-colors",
-                active ? "bg-[#EE0000]/10 text-[#EE0000]" : "text-muted-foreground hover:bg-secondary hover:text-foreground",
+                active ? "bg-[#D71920]/10 text-[#D71920]" : "text-muted-foreground hover:bg-secondary hover:text-foreground",
               )}
             >
               <Icon aria-hidden="true" className="size-5" />
@@ -167,30 +179,71 @@ function DesktopSidebar() {
             </button>
           )
         })}
-        {roleItem ? (
-          <button
-            type="button"
-            onClick={() => navigate(roleItem.screen)}
-            aria-current={screen === roleItem.screen ? "page" : undefined}
-            className={cn(
-              "flex min-h-11 items-center gap-3 rounded-xl px-3 text-left text-sm font-semibold transition-colors",
-              screen === roleItem.screen ? "bg-[#EE0000]/10 text-[#EE0000]" : "text-muted-foreground hover:bg-secondary hover:text-foreground",
-            )}
-          >
-            <PackageCheck aria-hidden="true" className="size-5" />
-            {roleItem.label}
-          </button>
-        ) : null}
       </nav>
       <button
         type="button"
-        onClick={() => navigate("auth")}
+        onClick={() => { navigate("auth"); onNavigate() }}
         className="mt-auto flex min-h-11 items-center gap-3 rounded-xl px-3 text-left text-sm font-semibold text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
       >
         <LogOut aria-hidden="true" className="size-5" />
         Logout
       </button>
+    </>
+  )
+}
+
+function DesktopSidebar() {
+  const { navigate } = useApp()
+  return (
+    <aside className="fixed inset-y-0 left-0 z-40 hidden w-[240px] flex-col border-r border-border bg-background px-4 py-6 lg:flex">
+      <button type="button" onClick={() => navigate("home")} aria-label="DOORS home" className="mb-8 flex items-center gap-3 px-2 text-left">
+        <LogoMark className="size-10 shrink-0" />
+        <span className="text-lg font-extrabold tracking-[0.08em] text-foreground">DOORS</span>
+      </button>
+      <NavigationItems onNavigate={() => {}} />
     </aside>
+  )
+}
+
+function MobileHeader() {
+  const [open, setOpen] = useState(false)
+  const { screen, navigate } = useApp()
+
+  useEffect(() => {
+    if (!open) return
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") setOpen(false)
+    }
+    window.addEventListener("keydown", handleKeyDown)
+    return () => window.removeEventListener("keydown", handleKeyDown)
+  }, [open])
+
+  useEffect(() => { setOpen(false) }, [screen])
+
+  return (
+    <>
+      <header className="flex h-14 shrink-0 items-center border-b border-border bg-background px-3 lg:hidden">
+        <button type="button" aria-label="Open navigation menu" aria-expanded={open} onClick={() => setOpen(true)} className="inline-flex size-11 items-center justify-center rounded-xl text-[#D71920] hover:bg-brand-soft focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand">
+          <Menu aria-hidden="true" className="size-6" />
+        </button>
+        <button type="button" onClick={() => navigate("home")} aria-label="DOORS home" className="ml-2 flex items-center gap-2">
+          <LogoMark className="size-8 shrink-0" />
+          <span className="text-sm font-extrabold tracking-[0.08em] text-foreground">DOORS</span>
+        </button>
+      </header>
+      {open ? (
+        <div className="fixed inset-0 z-50 lg:hidden">
+          <button type="button" aria-label="Close navigation menu" onClick={() => setOpen(false)} className="absolute inset-0 bg-black/45" />
+          <aside role="dialog" aria-modal="true" aria-label="Navigation menu" className="absolute inset-y-0 left-0 flex w-[min(84vw,320px)] flex-col border-r border-border bg-background px-4 py-5 shadow-2xl">
+            <div className="mb-7 flex items-center justify-between px-2">
+              <div className="flex items-center gap-3"><LogoMark className="size-9 shrink-0" /><span className="text-base font-extrabold tracking-[0.08em]">DOORS</span></div>
+              <button type="button" aria-label="Close navigation menu" onClick={() => setOpen(false)} className="inline-flex size-11 items-center justify-center rounded-xl text-muted-foreground hover:bg-secondary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"><X aria-hidden="true" className="size-5" /></button>
+            </div>
+            <NavigationItems onNavigate={() => setOpen(false)} />
+          </aside>
+        </div>
+      ) : null}
+    </>
   )
 }
 
