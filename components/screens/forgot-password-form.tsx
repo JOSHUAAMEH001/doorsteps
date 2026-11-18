@@ -99,6 +99,11 @@ export function ForgotPasswordForm({ initialEmail }: { initialEmail: string }) {
               {message}
             </p>
           ) : null}
+          {sent ? (
+            <p className="-mt-3 text-xs leading-relaxed text-muted-foreground">
+              Can&apos;t find our email? Please check your spam or junk folder too.
+            </p>
+          ) : null}
 
           <PrimaryButton type="submit" disabled={loading || sent} className="min-h-12 rounded-2xl">
             {loading ? <><LoaderCircle aria-hidden="true" className="size-4 animate-spin" />Sending reset link...</> : sent ? "Reset link sent" : "Send reset link"}

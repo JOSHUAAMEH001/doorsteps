@@ -170,6 +170,11 @@ export function AuthScreen() {
               {message}
             </p>
           ) : null}
+          {messageType === "success" && message ? (
+            <p className="-mt-3 text-xs leading-relaxed text-muted-foreground">
+              Can&apos;t find our email? Please check your spam or junk folder too.
+            </p>
+          ) : null}
 
           <div className="mt-auto flex flex-col gap-3 pt-5">
             <PrimaryButton type="submit" disabled={loading} className="min-h-12 rounded-2xl">
