@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect } from "react"
-import { LogoMark } from "@/components/brand/logo"
+import { BrandLogo } from "@/components/brand/logo"
 import { useApp } from "@/lib/store"
 
 export function SplashScreen() {
@@ -14,17 +14,12 @@ export function SplashScreen() {
 
   return (
     <div className="relative flex h-full flex-col items-center justify-center bg-brand px-8 text-center">
-      <div>
-        <LogoMark className="h-20 w-20 bg-brand-foreground text-brand" />
-      </div>
-      <div className="mt-6">
-        <h1 className="text-3xl font-extrabold tracking-tight text-brand-foreground">
-          Doorsteps
-        </h1>
-        <p className="mt-1 text-sm font-medium text-brand-foreground/80">
-          Logistics — ESUT Agbani
-        </p>
-      </div>
+      <h1 className="m-0">
+        <BrandLogo tone="white" priority className="h-auto w-[min(72vw,300px)]" />
+      </h1>
+      <p className="mt-4 text-sm font-medium text-brand-foreground/80">
+        Campus delivery · ESUT Agbani
+      </p>
 
       <p className="absolute bottom-24 max-w-[240px] text-balance text-sm font-medium text-brand-foreground/80">
         Your campus. Delivered to your doorstep.
