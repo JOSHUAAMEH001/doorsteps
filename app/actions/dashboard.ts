@@ -168,6 +168,29 @@ export async function adminAssignRider(orderId: string, riderId: string): Promis
   }
 }
 
+/** Lightweight list of stores and riders an admin can preview. */
+export async function getPreviewTargets(): Promise<ActionResult<{ vendors: { id: string; name: string }[]; riders: { id: string; name: string }[] }>> {
+  const empty = { vendors: [], riders: [] }
+  const caller = await requireRole(["admin"])
+  if ("error" in caller) return { data: empty, error: caller.error }
+  try {
+    const [vendors, riders] = await Promise.all([
+      caller.supabase.from("vendors").select("id, name").order("name"),
+      caller.supabase.from("profiles").select("id, full_name, email").eq("role", "rider").order("created_at"),
+    ])
+    if (vendors.error || riders.error) return fail(empty, vendors.error ?? riders.error, "preview targets failed")
+    return {
+      data: {
+        vendors: vendors.data ?? [],
+        riders: (riders.data ?? []).map((r) => ({ id: r.id, name: r.full_name?.trim() || r.email?.split("@")[0] || "Rider" })),
+      },
+      error: null,
+    }
+  } catch (error) {
+    return fail(empty, error, "preview targets crashed")
+  }
+}
+
 /* ----------------------------------------------------------------------------
  * Vendor
  * ------------------------------------------------------------------------- */
@@ -200,12 +223,19 @@ export type VendorWorkspace = {
 
 const EMPTY_VENDOR: VendorWorkspace = { vendor: null, orders: [], menu: [] }
 
-export async function getVendorWorkspace(): Promise<ActionResult<VendorWorkspace>> {
-  const caller = await requireRole(["vendor"])
+/**
+ * Vendors get their own store. Admins may preview any store read-only by
+ * passing its id; every vendor write action still requires the vendor role.
+ */
+export async function getVendorWorkspace(previewVendorId?: string): Promise<ActionResult<VendorWorkspace>> {
+  const caller = await requireRole(["vendor", "admin"])
   if ("error" in caller) return { data: EMPTY_VENDOR, error: caller.error }
-  if (!caller.vendorId) return { data: EMPTY_VENDOR, error: "Your account isn't linked to a store yet. Contact DOORS support." }
+  const vendorId = caller.role === "admin" ? previewVendorId ?? null : caller.vendorId
+  if (!vendorId) {
+    return { data: EMPTY_VENDOR, error: caller.role === "admin" ? null : "Your account isn't linked to a store yet. Contact DOORS support." }
+  }
   try {
-    const { supabase, vendorId } = caller
+    const { supabase } = caller
     const [vendor, orders, menu] = await Promise.all([
       supabase.from("vendors").select("id, name, category, is_active, rating, delivery_minutes, created_at").eq("id", vendorId).maybeSingle(),
       supabase
@@ -285,11 +315,23 @@ export type RiderWorkspace = {
 
 const EMPTY_RIDER: RiderWorkspace = { riderId: null, riderName: null, orders: [], earnings: [] }
 
-export async function getRiderWorkspace(): Promise<ActionResult<RiderWorkspace>> {
-  const caller = await requireRole(["rider"])
+/**
+ * Riders get their own deliveries. Admins may preview a chosen rider read-only;
+ * rider write actions (accept, pickup, deliver, location) still require the rider role.
+ */
+export async function getRiderWorkspace(previewRiderId?: string): Promise<ActionResult<RiderWorkspace>> {
+  const caller = await requireRole(["rider", "admin"])
   if ("error" in caller) return { data: EMPTY_RIDER, error: caller.error }
   try {
-    const { supabase, userId } = caller
+    const { supabase } = caller
+    let userId = caller.userId
+    if (caller.role === "admin") {
+      if (!previewRiderId) return { data: EMPTY_RIDER, error: null }
+      const { data: target, error: targetError } = await supabase.from("profiles").select("role").eq("id", previewRiderId).maybeSingle()
+      if (targetError) return fail(EMPTY_RIDER, targetError, "rider preview lookup failed")
+      if (target?.role !== "rider") return { data: EMPTY_RIDER, error: "That person isn't a rider." }
+      userId = previewRiderId
+    }
     const [profile, declines, orders, earnings] = await Promise.all([
       supabase.from("profiles").select("full_name, email").eq("id", userId).maybeSingle(),
       supabase.from("order_declines").select("order_id").eq("rider_id", userId),

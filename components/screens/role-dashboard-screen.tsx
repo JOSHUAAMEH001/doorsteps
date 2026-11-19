@@ -45,13 +45,15 @@ function OrderCard({ order }: { order: any }) {
 /**
  * Client-side gate for the UI only. Real enforcement happens in the server
  * actions (role re-check) and Supabase RLS, so a tampered client still gets no data.
+ * Admins may open the vendor and rider dashboards as a read-only preview.
  */
 export function RoleDashboardScreen({ role }: { role: Role }) {
   const { data, isLoading } = useSWR("current-profile", getCurrentProfile)
   if (isLoading) return <LoadingState label="Loading your dashboard..." className="min-h-48 w-full" />
-  if (!data?.data || data.data.role !== role) return <p className="p-6 text-sm text-muted-foreground">You don&apos;t have access to this section.</p>
-  if (role === "vendor") return <VendorDashboard />
-  if (role === "rider") return <RiderDashboard />
+  const adminPreview = data?.data?.role === "admin" && (role === "vendor" || role === "rider")
+  if (!data?.data || (data.data.role !== role && !adminPreview)) return <p className="p-6 text-sm text-muted-foreground">You don&apos;t have access to this section.</p>
+  if (role === "vendor") return <VendorDashboard preview={adminPreview} />
+  if (role === "rider") return <RiderDashboard preview={adminPreview} />
   if (role === "admin") return <AdminDashboard />
   return <CustomerDashboard />
 }

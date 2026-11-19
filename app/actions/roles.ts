@@ -9,6 +9,17 @@ export type SafeResult<T> = { data: T; error: string | null }
 
 async function client() { return createClient() }
 
+/** Only real riders may take rider actions. Admins get a clear message (they preview read-only). */
+async function getRiderActionUser(supabase: Awaited<ReturnType<typeof client>>) {
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { user: null, error: 'Please log in again.' }
+  const { data: profile, error } = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle()
+  if (error) return { user: null, error: 'We couldn\'t verify your account. Please try again.' }
+  if (profile?.role === 'admin') return { user: null, error: 'Admin accounts can\'t perform rider actions.' }
+  if (profile?.role !== 'rider') return { user: null, error: 'You don\'t have permission to do that.' }
+  return { user, error: null }
+}
+
 export async function getCurrentProfile(): Promise<SafeResult<{ id: string; email: string; full_name: string | null; role: Role; vendor_id: string | null } | null>> {
   try {
     const supabase = await client()
@@ -63,10 +74,8 @@ export async function getRiderOrders(): Promise<SafeResult<unknown[]>> {
 export async function acceptRiderOrder(id: string): Promise<SafeResult<null>> {
   try {
     const supabase = await client()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return { data: null, error: 'Please log in again.' }
-    const profile = await getCurrentProfile()
-    if (profile.data?.role !== 'rider') return { data: null, error: "You don't have permission to do that." }
+    const { user, error: userError } = await getRiderActionUser(supabase)
+    if (userError || !user) return { data: null, error: userError }
     const { data, error } = await supabase.from('orders').update({ rider_id: user.id, status: 'assigned' }).eq('id', id).eq('status', 'confirmed').is('rider_id', null).select('id').maybeSingle()
     if (error) return { data: null, error: error.message }
     return data ? { data: null, error: null } : { data: null, error: 'Order already taken' }
@@ -76,8 +85,8 @@ export async function acceptRiderOrder(id: string): Promise<SafeResult<null>> {
 export async function declineRiderOrder(id: string): Promise<SafeResult<null>> {
   try {
     const supabase = await client()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return { data: null, error: 'Please log in again.' }
+    const { user, error: userError } = await getRiderActionUser(supabase)
+    if (userError || !user) return { data: null, error: userError }
     const { error } = await supabase.from('order_declines').insert({ order_id: id, rider_id: user.id })
     return { data: null, error: error?.message ?? null }
   } catch (error) { return { data: null, error: error instanceof Error ? error.message : String(error) } }
@@ -86,8 +95,8 @@ export async function declineRiderOrder(id: string): Promise<SafeResult<null>> {
 export async function updateRiderOrderStatus(id: string, status: 'picked_up' | 'delivered'): Promise<SafeResult<null>> {
   try {
     const supabase = await client()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return { data: null, error: 'Please log in again.' }
+    const { user, error: userError } = await getRiderActionUser(supabase)
+    if (userError || !user) return { data: null, error: userError }
     if (status !== 'picked_up' && status !== 'delivered') return { data: null, error: 'Unknown status.' }
     const values = status === 'delivered' ? { status, delivered_at: new Date().toISOString() } : { status }
     // Enforce the workflow: picked up only after assigned, delivered only after picked up.

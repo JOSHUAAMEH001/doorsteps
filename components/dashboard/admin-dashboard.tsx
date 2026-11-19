@@ -136,7 +136,7 @@ export function AdminDashboard() {
   }
 
   return (
-    <DashboardShell roleLabel="Admin" title={titles[section][0]} subtitle={titles[section][1]} nav={nav} active={section} onSelect={setSection} notices={notices} userName={userName}>
+    <DashboardShell roleLabel="Admin" title={titles[section][0]} subtitle={titles[section][1]} nav={nav} active={section} onSelect={setSection} notices={notices} userName={userName} showRolePreviews>
       {loadError ? <div className="mb-5"><ErrorBanner message={loadError} onRetry={() => void mutate()} /></div> : null}
       {isLoading && !data ? <DashboardSkeleton /> : (
         <>

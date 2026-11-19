@@ -20,10 +20,10 @@ import {
   Wallet,
   XCircle,
 } from "lucide-react"
-import { getVendorWorkspace, vendorRespondToOrder, type VendorOrder, type VendorWorkspace } from "@/app/actions/dashboard"
+import { getPreviewTargets, getVendorWorkspace, vendorRespondToOrder, type VendorOrder, type VendorWorkspace } from "@/app/actions/dashboard"
 import { useApp } from "@/lib/store"
 import { CatalogImage } from "@/components/app/catalog-image"
-import { DashboardShell, type NavItem, type ShellNotice } from "@/components/dashboard/shell"
+import { AdminPreviewBar, DashboardShell, type NavItem, type ShellNotice } from "@/components/dashboard/shell"
 import {
   ActionButton,
   AreaChart,
@@ -58,11 +58,20 @@ const EMPTY: VendorWorkspace = { vendor: null, orders: [], menu: [] }
 /** Vendor revenue is the food subtotal; delivery fees belong to DOORS and riders. */
 const vendorAmount = (o: VendorOrder) => Number(o.subtotal ?? o.total) || 0
 
-export function VendorDashboard() {
+export function VendorDashboard({ preview = false }: { preview?: boolean }) {
   const { userName } = useApp()
   const [section, setSection] = useState<Section>("orders")
   const [board, setBoard] = useState<Board>("new")
-  const { data, error, isLoading, mutate } = useSWR("dashboard-vendor", getVendorWorkspace, { refreshInterval: 15_000, revalidateOnFocus: true })
+  const [previewId, setPreviewId] = useState("")
+  const { data: targets } = useSWR(preview ? "dashboard-preview-targets" : null, getPreviewTargets)
+  useEffect(() => {
+    if (preview && !previewId && targets?.data.vendors[0]) setPreviewId(targets.data.vendors[0].id)
+  }, [preview, previewId, targets])
+  const { data, error, isLoading, mutate } = useSWR(
+    preview ? (previewId ? ["dashboard-vendor-preview", previewId] : null) : "dashboard-vendor",
+    () => getVendorWorkspace(preview ? previewId : undefined),
+    { refreshInterval: 15_000, revalidateOnFocus: true },
+  )
   const toasts = useToasts()
   const now = useNow(30_000)
   const workspace = data?.data ?? EMPTY
@@ -88,9 +97,9 @@ export function VendorDashboard() {
     const fresh = groups.new.filter((o) => !seen.current!.has(o.id))
     fresh.forEach((o) => {
       seen.current!.add(o.id)
-      toasts.push(`New order ${o.order_code} · ${naira(vendorAmount(o))}`)
+      if (!preview) toasts.push(`New order ${o.order_code} · ${naira(vendorAmount(o))}`)
     })
-    if (fresh.length) {
+    if (fresh.length && !preview) {
       try { navigator.vibrate?.(200) } catch { /* not supported */ }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -102,6 +111,7 @@ export function VendorDashboard() {
   }, [groups.new.length])
 
   async function respond(order: VendorOrder, decision: "accept" | "reject") {
+    if (preview) return
     if (decision === "reject" && !window.confirm(`Reject order ${order.order_code}? The customer will see it as cancelled.`)) return
     const result = await vendorRespondToOrder(order.id, decision)
     if (result.error) toasts.push(result.error, "error")
@@ -136,10 +146,11 @@ export function VendorDashboard() {
       userName={userName}
       headerExtra={workspace.vendor ? <span className="hidden md:inline-flex">{workspace.vendor.is_active ? <Badge tone="success">Listed</Badge> : <Badge>Hidden</Badge>}</span> : null}
     >
+      {preview ? <div className="mb-5"><AdminPreviewBar kind="vendor" options={targets?.data.vendors ?? []} value={previewId} onChange={setPreviewId} /></div> : null}
       {loadError ? <div className="mb-5"><ErrorBanner message={loadError} onRetry={() => void mutate()} /></div> : null}
-      {isLoading && !data ? <DashboardSkeleton /> : (
+      {preview && !previewId ? null : isLoading && !data ? <DashboardSkeleton /> : (
         <>
-          {section === "orders" ? <OrdersBoard groups={groups} board={board} setBoard={setBoard} onRespond={respond} now={now} /> : null}
+          {section === "orders" ? <OrdersBoard groups={groups} board={board} setBoard={setBoard} onRespond={respond} now={now} readOnly={preview} /> : null}
           {section === "overview" ? <Overview orders={orders} groups={groups} go={(b) => { setBoard(b); setSection("orders") }} /> : null}
           {section === "menu" ? <MenuSection workspace={workspace} /> : null}
           {section === "earnings" ? <EarningsSection orders={orders} /> : null}
@@ -159,7 +170,7 @@ export function VendorDashboard() {
 
 type Groups = Record<Board, VendorOrder[]>
 
-function OrdersBoard({ groups, board, setBoard, onRespond, now }: { groups: Groups; board: Board; setBoard: (b: Board) => void; onRespond: (o: VendorOrder, d: "accept" | "reject") => Promise<void>; now: number }) {
+function OrdersBoard({ groups, board, setBoard, onRespond, now, readOnly }: { groups: Groups; board: Board; setBoard: (b: Board) => void; onRespond: (o: VendorOrder, d: "accept" | "reject") => Promise<void>; now: number; readOnly: boolean }) {
   const [query, setQuery] = useState("")
   const q = query.trim().toLowerCase()
   const list = groups[board].filter((o) => !q || [o.order_code, o.customer_name, o.phone, ...o.order_items.map((i) => i.item_name)].some((v) => v?.toLowerCase().includes(q)))
@@ -199,14 +210,14 @@ function OrdersBoard({ groups, board, setBoard, onRespond, now }: { groups: Grou
         <Panel><EmptyState icon={board === "new" ? CheckCircle2 : ClipboardList} title={q ? "No matching orders" : board === "new" ? "You're all caught up" : `No ${board === "pickup" ? "orders with a rider" : board === "done" ? "delivered orders" : `${board} orders`}`} body={board === "new" && !q ? "New orders appear here automatically. This page refreshes every 15 seconds." : undefined} /></Panel>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
-          {list.map((order) => <VendorOrderCard key={order.id} order={order} onRespond={onRespond} now={now} />)}
+          {list.map((order) => <VendorOrderCard key={order.id} order={order} onRespond={onRespond} now={now} readOnly={readOnly} />)}
         </div>
       )}
     </div>
   )
 }
 
-function VendorOrderCard({ order, onRespond, now }: { order: VendorOrder; onRespond: (o: VendorOrder, d: "accept" | "reject") => Promise<void>; now: number }) {
+function VendorOrderCard({ order, onRespond, now, readOnly }: { order: VendorOrder; onRespond: (o: VendorOrder, d: "accept" | "reject") => Promise<void>; now: number; readOnly: boolean }) {
   const [busy, setBusy] = useState<"accept" | "reject" | null>(null)
   const isNew = order.status === "pending"
   const itemCount = order.order_items.reduce((a, i) => a + i.quantity, 0)
@@ -252,8 +263,8 @@ function VendorOrderCard({ order, onRespond, now }: { order: VendorOrder; onResp
         </div>
         {isNew ? (
           <div className="flex gap-2">
-            <ActionButton variant="danger" onClick={() => void act("reject")} busy={busy === "reject"} disabled={busy !== null}><XCircle aria-hidden="true" className="size-4" />Reject</ActionButton>
-            <ActionButton onClick={() => void act("accept")} busy={busy === "accept"} disabled={busy !== null}><CheckCircle2 aria-hidden="true" className="size-4" />Accept</ActionButton>
+            <ActionButton variant="danger" onClick={() => void act("reject")} busy={busy === "reject"} disabled={readOnly || busy !== null}><XCircle aria-hidden="true" className="size-4" />Reject</ActionButton>
+            <ActionButton onClick={() => void act("accept")} busy={busy === "accept"} disabled={readOnly || busy !== null}><CheckCircle2 aria-hidden="true" className="size-4" />Accept</ActionButton>
           </div>
         ) : null}
       </footer>

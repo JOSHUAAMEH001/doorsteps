@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from "react"
 import { useSWRConfig } from "swr"
-import { Bell, LogOut, Menu, Store, X, type LucideIcon } from "lucide-react"
+import { Bell, Eye, LogOut, Menu, Store, X, type LucideIcon } from "lucide-react"
 import { LogoMark } from "@/components/brand/logo"
 import { useApp } from "@/lib/store"
 import { createClient } from "@/lib/supabase/client"
@@ -31,6 +31,23 @@ export function useSignOut() {
   return { signOut, busy }
 }
 
+/** Banner shown when an admin previews the vendor or rider dashboard. Actions are disabled. */
+export function AdminPreviewBar({ kind, options, value, onChange }: { kind: "vendor" | "rider"; options: { id: string; name: string }[]; value: string; onChange: (id: string) => void }) {
+  const { navigate } = useApp()
+  return (
+    <div role="status" className="flex flex-col gap-3 rounded-2xl border border-brand/20 bg-brand-soft px-4 py-3 sm:flex-row sm:items-center">
+      <p className="flex-1 text-sm font-semibold text-brand">Admin preview: you&apos;re seeing what this {kind} sees. Actions are disabled.</p>
+      <div className="flex gap-2">
+        <select aria-label={`Choose a ${kind} to preview`} value={value} onChange={(e) => onChange(e.target.value)} className="h-10 min-w-0 flex-1 rounded-xl border border-border bg-background px-3 text-sm font-semibold sm:w-56 sm:flex-none">
+          <option value="">{options.length ? `Choose a ${kind}…` : `No ${kind}s yet`}</option>
+          {options.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
+        </select>
+        <button type="button" onClick={() => navigate("adminDashboard")} className="h-10 shrink-0 rounded-xl bg-brand px-3 text-sm font-bold text-white">Back to admin</button>
+      </div>
+    </div>
+  )
+}
+
 export function DashboardShell<T extends string>({
   roleLabel,
   title,
@@ -41,6 +58,7 @@ export function DashboardShell<T extends string>({
   notices,
   userName,
   headerExtra,
+  showRolePreviews = false,
   children,
 }: {
   roleLabel: string
@@ -52,6 +70,8 @@ export function DashboardShell<T extends string>({
   notices: ShellNotice[]
   userName: string
   headerExtra?: ReactNode
+  /** Admin only: links to the read-only vendor and rider dashboard previews. */
+  showRolePreviews?: boolean
   children: ReactNode
 }) {
   const [drawerOpen, setDrawerOpen] = useState(false)
@@ -72,7 +92,7 @@ export function DashboardShell<T extends string>({
   return (
     <div className="flex h-full min-h-0 w-full bg-[#f6f6f8]">
       <aside className="hidden w-[256px] shrink-0 flex-col bg-brand text-white lg:flex">
-        <SidebarContent roleLabel={roleLabel} nav={nav} active={active} onSelect={select} />
+        <SidebarContent roleLabel={roleLabel} nav={nav} active={active} onSelect={select} showRolePreviews={showRolePreviews} />
       </aside>
 
       {drawerOpen ? (
@@ -82,7 +102,7 @@ export function DashboardShell<T extends string>({
             <button type="button" aria-label="Close menu" onClick={() => setDrawerOpen(false)} className="absolute right-3 top-4 flex size-10 items-center justify-center rounded-xl text-white/80 hover:bg-white/10">
               <X aria-hidden="true" className="size-5" />
             </button>
-            <SidebarContent roleLabel={roleLabel} nav={nav} active={active} onSelect={select} />
+            <SidebarContent roleLabel={roleLabel} nav={nav} active={active} onSelect={select} showRolePreviews={showRolePreviews} />
           </aside>
         </div>
       ) : null}
@@ -111,7 +131,7 @@ export function DashboardShell<T extends string>({
   )
 }
 
-function SidebarContent<T extends string>({ roleLabel, nav, active, onSelect }: { roleLabel: string; nav: NavItem<T>[]; active: T; onSelect: (id: T) => void }) {
+function SidebarContent<T extends string>({ roleLabel, nav, active, onSelect, showRolePreviews }: { roleLabel: string; nav: NavItem<T>[]; active: T; onSelect: (id: T) => void; showRolePreviews: boolean }) {
   const { navigate } = useApp()
   const { signOut, busy } = useSignOut()
   let lastGroup: string | undefined
@@ -154,6 +174,18 @@ function SidebarContent<T extends string>({ roleLabel, nav, active, onSelect }: 
         })}
       </nav>
       <div className="flex flex-col gap-1 border-t border-white/15 px-3 py-4">
+        {showRolePreviews ? (
+          <>
+            <button type="button" onClick={() => navigate("vendorDashboard")} className="flex min-h-11 items-center gap-3 rounded-xl px-3 text-left text-sm font-semibold text-white/85 hover:bg-white/10 hover:text-white">
+              <Eye aria-hidden="true" className="size-[18px]" />
+              Vendor view
+            </button>
+            <button type="button" onClick={() => navigate("riderDashboard")} className="flex min-h-11 items-center gap-3 rounded-xl px-3 text-left text-sm font-semibold text-white/85 hover:bg-white/10 hover:text-white">
+              <Eye aria-hidden="true" className="size-[18px]" />
+              Rider view
+            </button>
+          </>
+        ) : null}
         <button type="button" onClick={() => navigate("home")} className="flex min-h-11 items-center gap-3 rounded-xl px-3 text-left text-sm font-semibold text-white/85 hover:bg-white/10 hover:text-white">
           <Store aria-hidden="true" className="size-[18px]" />
           Customer app

@@ -21,12 +21,12 @@ import {
   Wallet,
   XCircle,
 } from "lucide-react"
-import { getRiderWorkspace, type RiderOrder, type RiderWorkspace } from "@/app/actions/dashboard"
+import { getPreviewTargets, getRiderWorkspace, type RiderOrder, type RiderWorkspace } from "@/app/actions/dashboard"
 import { acceptRiderOrder, declineRiderOrder, updateRiderOrderStatus } from "@/app/actions/roles"
 import { useApp } from "@/lib/store"
 import { cn } from "@/lib/utils"
 import { LogoMark } from "@/components/brand/logo"
-import { useSignOut } from "@/components/dashboard/shell"
+import { AdminPreviewBar, useSignOut } from "@/components/dashboard/shell"
 import { useRiderLocationSharing } from "@/components/screens/use-rider-location-sharing"
 import {
   ActionButton,
@@ -63,10 +63,19 @@ function mapsLink(order: RiderOrder, leg: "pickup" | "dropoff") {
   return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(`${place}, Agbani, Enugu`)}&travelmode=driving`
 }
 
-export function RiderDashboard() {
+export function RiderDashboard({ preview = false }: { preview?: boolean }) {
   const [tab, setTab] = useState<Tab>("home")
   const [online, setOnline] = useState(true)
-  const { data, error, isLoading, mutate } = useSWR("dashboard-rider", getRiderWorkspace, { refreshInterval: 15_000, revalidateOnFocus: true })
+  const [previewId, setPreviewId] = useState("")
+  const { data: targets } = useSWR(preview ? "dashboard-preview-targets" : null, getPreviewTargets)
+  useEffect(() => {
+    if (preview && !previewId && targets?.data.riders[0]) setPreviewId(targets.data.riders[0].id)
+  }, [preview, previewId, targets])
+  const { data, error, isLoading, mutate } = useSWR(
+    preview ? (previewId ? ["dashboard-rider-preview", previewId] : null) : "dashboard-rider",
+    () => getRiderWorkspace(preview ? previewId : undefined),
+    { refreshInterval: 15_000, revalidateOnFocus: true },
+  )
   const toasts = useToasts()
   const now = useNow(30_000)
   const workspace = data?.data ?? EMPTY
@@ -78,19 +87,23 @@ export function RiderDashboard() {
   const history = mine.filter((o) => o.status === "delivered" || o.status === "cancelled")
   const today = workspace.earnings.find((row) => row.day === todayKey())
 
-  const location = useRiderLocationSharing(active, { isLoading, hasError: Boolean(loadError) })
+  // In admin preview, never share the admin's own GPS: give the hook no orders to track.
+  const location = useRiderLocationSharing(preview ? [] : active, { isLoading, hasError: Boolean(loadError) })
 
   // Remember the online switch per device.
   useEffect(() => {
+    if (preview) return
     try { const saved = window.localStorage.getItem(ONLINE_KEY); if (saved !== null) setOnline(saved === "1") } catch { /* storage unavailable */ }
-  }, [])
+  }, [preview])
   function setOnlineState(next: boolean) {
+    if (preview) return
     setOnline(next)
     try { window.localStorage.setItem(ONLINE_KEY, next ? "1" : "0") } catch { /* storage unavailable */ }
     if (!next && location.sharingOrderId) location.toggleSharing(location.sharingOrderId)
   }
 
   async function run(label: string, action: () => Promise<{ error: string | null }>) {
+    if (preview) return false
     const result = await action()
     if (result.error) toasts.push(result.error, "error")
     else toasts.push(label)
@@ -115,6 +128,7 @@ export function RiderDashboard() {
             role="switch"
             aria-checked={online}
             aria-label={online ? "Go offline" : "Go online"}
+            disabled={preview}
             onClick={() => setOnlineState(!online)}
             className={cn("flex h-11 items-center gap-2 rounded-full px-4 text-sm font-extrabold transition-colors", online ? "bg-white text-brand" : "bg-white/15 text-white ring-1 ring-white/40")}
           >
@@ -126,8 +140,9 @@ export function RiderDashboard() {
 
       <main className="no-scrollbar min-h-0 flex-1 overflow-y-auto">
         <div key={tab} className="doors-fade-in mx-auto flex w-full max-w-2xl flex-col gap-4 px-4 py-4 pb-8">
+          {preview ? <AdminPreviewBar kind="rider" options={targets?.data.riders ?? []} value={previewId} onChange={setPreviewId} /> : null}
           {loadError ? <ErrorBanner message={loadError} onRetry={() => void mutate()} /> : null}
-          {isLoading && !data ? <ListSkeleton rows={3} /> : (
+          {preview && !previewId ? null : isLoading && !data ? <ListSkeleton rows={3} /> : (
             <>
               {tab === "home" ? (
                 <>
@@ -136,7 +151,7 @@ export function RiderDashboard() {
                     <MiniStat icon={CheckCircle2} label="Done today" value={String(today?.deliveries ?? 0)} />
                   </div>
                   {active.length ? (
-                    active.map((order) => <ActiveDelivery key={order.id} order={order} location={location} run={run} now={now} />)
+                    active.map((order) => <ActiveDelivery key={order.id} order={order} location={location} run={run} now={now} readOnly={preview} />)
                   ) : (
                     <Panel><EmptyState icon={Bike} title="No active delivery" body={online ? "Accept a request below to start a delivery." : "You're offline. Go online to see delivery requests."} /></Panel>
                   )}
@@ -150,7 +165,7 @@ export function RiderDashboard() {
                     ) : requests.length === 0 ? (
                       <Panel><EmptyState icon={Package} title="No requests right now" body="When a vendor accepts an order, it shows up here. This screen refreshes every 15 seconds." /></Panel>
                     ) : (
-                      requests.map((order) => <RequestCard key={order.id} order={order} run={run} now={now} hasActive={active.length > 0} />)
+                      requests.map((order) => <RequestCard key={order.id} order={order} run={run} now={now} hasActive={active.length > 0} readOnly={preview} />)
                     )}
                   </section>
                 </>
@@ -200,7 +215,7 @@ type LocationState = ReturnType<typeof useRiderLocationSharing>
  * Active delivery: big, glanceable, one primary action at a time
  * ------------------------------------------------------------------------- */
 
-function ActiveDelivery({ order, location, run, now }: { order: RiderOrder; location: LocationState; run: Runner; now: number }) {
+function ActiveDelivery({ order, location, run, now, readOnly }: { order: RiderOrder; location: LocationState; run: Runner; now: number; readOnly: boolean }) {
   const [busy, setBusy] = useState(false)
   const pickedUp = order.status === "picked_up"
   const sharing = location.sharingOrderId === order.id
@@ -258,7 +273,7 @@ function ActiveDelivery({ order, location, run, now }: { order: RiderOrder; loca
           type="button"
           role="switch"
           aria-checked={sharing}
-          disabled={location.isStarting}
+          disabled={readOnly || location.isStarting}
           onClick={() => location.toggleSharing(order.id)}
           className={cn("flex min-h-14 items-center gap-3 rounded-2xl border px-4 text-left transition-colors disabled:opacity-60", sharing ? "border-emerald-200 bg-emerald-50" : "border-border bg-background")}
         >
@@ -273,7 +288,7 @@ function ActiveDelivery({ order, location, run, now }: { order: RiderOrder; loca
           </span>
         </button>
 
-        <ActionButton size="lg" onClick={() => void advance()} busy={busy} className="w-full">
+        <ActionButton size="lg" onClick={() => void advance()} busy={busy} disabled={readOnly} className="w-full">
           {pickedUp ? <><CheckCircle2 aria-hidden="true" className="size-5" />Confirm delivery</> : <><Package aria-hidden="true" className="size-5" />Confirm pickup</>}
         </ActionButton>
         <p className="text-center text-[11px] text-muted-foreground">Accepted {timeAgo(order.created_at, now)} · {order.payment_method === "cash" ? "Cash" : order.payment_method} order · {naira(order.total)}</p>
@@ -302,7 +317,7 @@ function Leg({ icon: Icon, label, title, detail, active, href }: { icon: typeof 
  * Requests
  * ------------------------------------------------------------------------- */
 
-function RequestCard({ order, run, now, hasActive }: { order: RiderOrder; run: Runner; now: number; hasActive: boolean }) {
+function RequestCard({ order, run, now, hasActive, readOnly }: { order: RiderOrder; run: Runner; now: number; hasActive: boolean; readOnly: boolean }) {
   const [busy, setBusy] = useState<"accept" | "decline" | null>(null)
   async function act(kind: "accept" | "decline") {
     setBusy(kind)
@@ -322,8 +337,8 @@ function RequestCard({ order, run, now, hasActive }: { order: RiderOrder; run: R
       </div>
       {hasActive ? <p className="mt-3 text-[11px] font-semibold text-amber-700">You already have an active delivery. Only accept if you can carry both.</p> : null}
       <div className="mt-4 grid grid-cols-[1fr_2fr] gap-2">
-        <ActionButton variant="danger" size="lg" onClick={() => void act("decline")} busy={busy === "decline"} disabled={busy !== null}><XCircle aria-hidden="true" className="size-5" />Skip</ActionButton>
-        <ActionButton size="lg" onClick={() => void act("accept")} busy={busy === "accept"} disabled={busy !== null}><CheckCircle2 aria-hidden="true" className="size-5" />Accept</ActionButton>
+        <ActionButton variant="danger" size="lg" onClick={() => void act("decline")} busy={busy === "decline"} disabled={readOnly || busy !== null}><XCircle aria-hidden="true" className="size-5" />Skip</ActionButton>
+        <ActionButton size="lg" onClick={() => void act("accept")} busy={busy === "accept"} disabled={readOnly || busy !== null}><CheckCircle2 aria-hidden="true" className="size-5" />Accept</ActionButton>
       </div>
     </article>
   )
