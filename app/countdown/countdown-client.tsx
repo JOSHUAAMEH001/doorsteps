@@ -36,7 +36,7 @@ export default function CountdownClient() {
       <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-3 overflow-hidden text-center text-[clamp(4.5rem,22vw,15rem)] font-black leading-none tracking-[-0.08em] text-transparent [-webkit-text-stroke:1px_rgba(255,255,255,0.18)]">DOORS</div>
       <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 bottom-[-1.25rem] overflow-hidden text-center text-[clamp(4.5rem,22vw,15rem)] font-black leading-none tracking-[-0.08em] text-transparent [-webkit-text-stroke:1px_rgba(255,255,255,0.18)]">DOORS</div>
       <div className="relative z-10 flex w-full max-w-3xl flex-col items-center text-center">
-        <Image src="/doors-logo.png" alt="DOORS" width={260} height={112} priority className="mb-8 h-auto w-[min(58vw,260px)] object-contain" />
+        <Image src="/brand/doors-logo-white.png" alt="DOORS" width={1104} height={243} priority className="mb-8 h-auto w-[min(62vw,300px)] object-contain" />
         <h1 className="max-w-xl text-balance text-3xl font-extrabold tracking-[-0.04em] sm:text-5xl">We launch on December 1st</h1>
         <div className="mt-9 min-h-[7.5rem] w-full">
           {isLive ? <p className="pt-8 text-3xl font-extrabold sm:text-5xl">We are live!</p> : <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4" aria-live="polite" aria-label="Launch countdown">

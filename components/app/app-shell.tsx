@@ -33,7 +33,7 @@ import { NotificationsScreen } from "@/components/screens/notifications-screen"
 import { ProfileScreen } from "@/components/screens/profile-screen"
 import { SupportScreen } from "@/components/screens/support-screen"
 import { SettingsScreen } from "@/components/screens/settings-screen"
-import { LogoMark } from "@/components/brand/logo"
+import { BrandLogo } from "@/components/brand/logo"
 import { cn } from "@/lib/utils"
 import { useSignOut } from "@/components/dashboard/shell"
 
@@ -206,9 +206,8 @@ function DesktopSidebar() {
   const { navigate } = useApp()
   return (
     <aside className="fixed inset-y-0 left-0 z-40 hidden w-[240px] flex-col border-r border-border bg-background px-4 py-6 lg:flex">
-      <button type="button" onClick={() => navigate("home")} aria-label="DOORS home" className="mb-8 flex items-center gap-3 px-2 text-left">
-        <LogoMark className="size-10 shrink-0" />
-        <span className="text-lg font-extrabold tracking-[0.08em] text-foreground">DOORS</span>
+      <button type="button" onClick={() => navigate("home")} aria-label="DOORS home" className="mb-8 flex items-center px-2 py-1 text-left">
+        <BrandLogo tone="red" className="h-8" />
       </button>
       <NavigationItems onNavigate={() => {}} />
     </aside>
@@ -236,9 +235,8 @@ function MobileHeader() {
         <button type="button" aria-label="Open navigation menu" aria-expanded={open} onClick={() => setOpen(true)} className="inline-flex size-11 items-center justify-center rounded-xl text-[#D71920] hover:bg-brand-soft focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand">
           <Menu aria-hidden="true" className="size-6" />
         </button>
-        <button type="button" onClick={() => navigate("home")} aria-label="DOORS home" className="ml-2 flex items-center gap-2">
-          <LogoMark className="size-8 shrink-0" />
-          <span className="text-sm font-extrabold tracking-[0.08em] text-foreground">DOORS</span>
+        <button type="button" onClick={() => navigate("home")} aria-label="DOORS home" className="ml-2 flex items-center py-2">
+          <BrandLogo tone="red" className="h-6" />
         </button>
       </header>
       {open ? (
@@ -246,7 +244,7 @@ function MobileHeader() {
           <button type="button" aria-label="Close navigation menu" onClick={() => setOpen(false)} className="absolute inset-0 bg-black/45" />
           <aside role="dialog" aria-modal="true" aria-label="Navigation menu" className="absolute inset-y-0 left-0 flex w-[min(84vw,320px)] flex-col border-r border-border bg-background px-4 py-5 shadow-2xl">
             <div className="mb-7 flex items-center justify-between px-2">
-              <div className="flex items-center gap-3"><LogoMark className="size-9 shrink-0" /><span className="text-base font-extrabold tracking-[0.08em]">DOORS</span></div>
+              <BrandLogo tone="red" className="h-7" />
               <button type="button" aria-label="Close navigation menu" onClick={() => setOpen(false)} className="inline-flex size-11 items-center justify-center rounded-xl text-muted-foreground hover:bg-secondary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"><X aria-hidden="true" className="size-5" /></button>
             </div>
             <NavigationItems onNavigate={() => setOpen(false)} />

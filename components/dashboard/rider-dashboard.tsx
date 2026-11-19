@@ -25,7 +25,7 @@ import { getPreviewTargets, getRiderWorkspace, type RiderOrder, type RiderWorksp
 import { acceptRiderOrder, declineRiderOrder, updateRiderOrderStatus } from "@/app/actions/roles"
 import { useApp } from "@/lib/store"
 import { cn } from "@/lib/utils"
-import { LogoMark } from "@/components/brand/logo"
+import Image from "next/image"
 import { AdminPreviewBar, useSignOut } from "@/components/dashboard/shell"
 import { useRiderLocationSharing } from "@/components/screens/use-rider-location-sharing"
 import {
@@ -115,7 +115,7 @@ export function RiderDashboard({ preview = false }: { preview?: boolean }) {
     <div className="flex h-full min-h-0 w-full flex-col bg-[#f6f6f8]">
       <header className="sticky top-0 z-30 shrink-0 bg-brand text-white">
         <div className="mx-auto flex w-full max-w-2xl items-center gap-3 px-4 py-3">
-          <LogoMark className="size-9 shrink-0 bg-white text-brand" />
+          <Image src="/brand/doors-mark-white.png" alt="DOORS" width={385} height={279} className="h-7 w-auto shrink-0" />
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-extrabold">{workspace.riderName ?? "Rider"}</p>
             <p className="flex items-center gap-1.5 text-[11px] font-semibold text-white/80">

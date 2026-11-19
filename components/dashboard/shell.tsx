@@ -3,7 +3,7 @@
 import { useEffect, useState, type ReactNode } from "react"
 import { useSWRConfig } from "swr"
 import { Bell, Eye, LogOut, Menu, Store, X, type LucideIcon } from "lucide-react"
-import { LogoMark } from "@/components/brand/logo"
+import { BrandLogo } from "@/components/brand/logo"
 import { useApp } from "@/lib/store"
 import { createClient } from "@/lib/supabase/client"
 import { cn } from "@/lib/utils"
@@ -138,12 +138,9 @@ function SidebarContent<T extends string>({ roleLabel, nav, active, onSelect, sh
 
   return (
     <>
-      <div className="flex items-center gap-3 px-6 pb-6 pt-6">
-        <LogoMark className="size-10 shrink-0 bg-white text-brand" />
-        <div>
-          <p className="text-lg font-extrabold tracking-[0.12em]">DOORS</p>
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-white/70">{roleLabel}</p>
-        </div>
+      <div className="flex flex-col items-start gap-2 px-6 pb-6 pt-7">
+        <BrandLogo tone="white" className="h-8" />
+        <p className="pl-[18%] text-[11px] font-bold uppercase tracking-[0.2em] text-white/70">{roleLabel}</p>
       </div>
       <nav aria-label={`${roleLabel} navigation`} className="no-scrollbar flex flex-1 flex-col gap-0.5 overflow-y-auto px-3 pb-4">
         {nav.map((item) => {

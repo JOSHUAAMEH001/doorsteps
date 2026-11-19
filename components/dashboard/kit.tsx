@@ -371,7 +371,7 @@ export function AreaChart({ points, format = (v) => String(v), height = 220, lab
         {ticks.map((tick) => (
           <g key={tick}>
             <line x1={pad.left} x2={width - pad.right} y1={y(tick)} y2={y(tick)} stroke="#e4e4e7" strokeDasharray={tick === 0 ? undefined : "3 4"} />
-            <text x={pad.left - 10} y={y(tick)} textAnchor="end" dominantBaseline="middle" className="fill-muted-foreground text-[11px]">{format(tick)}</text>
+            {total > 0 ? <text x={pad.left - 10} y={y(tick)} textAnchor="end" dominantBaseline="middle" className="fill-muted-foreground text-[11px]">{format(tick)}</text> : null}
           </g>
         ))}
         {total > 0 ? <path d={area} fill="url(#doors-area)" /> : null}
