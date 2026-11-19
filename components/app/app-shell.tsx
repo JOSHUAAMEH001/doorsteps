@@ -33,7 +33,10 @@ import { SupportScreen } from "@/components/screens/support-screen"
 import { SettingsScreen } from "@/components/screens/settings-screen"
 import { LogoMark } from "@/components/brand/logo"
 import { cn } from "@/lib/utils"
+import { useSignOut } from "@/components/dashboard/shell"
 
+/** Role dashboards render their own full-screen layout (sidebar, header, mobile nav). */
+const WORKSPACE_SCREENS = new Set<Screen>(["vendorDashboard", "riderDashboard", "adminDashboard"])
 const TAB_SCREENS = new Set<Screen>(["home", "orders", "cart", "notifications", "profile"])
 const DESKTOP_NAV_SCREENS = new Set<Screen>([
   ...TAB_SCREENS,
@@ -54,7 +57,8 @@ const primaryItems: { screen: Screen; label: string; icon: typeof Home }[] = [
 export function AppShell() {
   const { screen, role } = useApp()
   const showNav = TAB_SCREENS.has(screen)
-  const showDesktopNav = DESKTOP_NAV_SCREENS.has(screen) || !["splash", "onboarding", "auth"].includes(screen)
+  const isWorkspace = WORKSPACE_SCREENS.has(screen)
+  const showDesktopNav = !isWorkspace && (DESKTOP_NAV_SCREENS.has(screen) || !["splash", "onboarding", "auth"].includes(screen))
 
   const content = (() => {
     switch (screen) {
@@ -105,6 +109,10 @@ export function AppShell() {
     }
   })()
 
+  if (isWorkspace) {
+    return <div key={screen} className="flex min-h-0 flex-1">{content}</div>
+  }
+
   return (
     <div className="flex min-h-0 flex-1">
       {showDesktopNav ? <DesktopSidebar /> : null}
@@ -130,6 +138,7 @@ export function AppShell() {
 
 function DesktopSidebar() {
   const { screen, role, navigate, cartCount } = useApp()
+  const { signOut, busy: signingOut } = useSignOut()
   const roleItem = role === "admin"
     ? { screen: "adminDashboard" as const, label: "Admin panel" }
     : role === "vendor"
@@ -184,11 +193,12 @@ function DesktopSidebar() {
       </nav>
       <button
         type="button"
-        onClick={() => navigate("auth")}
+        onClick={() => void signOut()}
+        disabled={signingOut}
         className="mt-auto flex min-h-11 items-center gap-3 rounded-xl px-3 text-left text-sm font-semibold text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
       >
         <LogOut aria-hidden="true" className="size-5" />
-        Logout
+        {signingOut ? "Signing out…" : "Logout"}
       </button>
     </aside>
   )

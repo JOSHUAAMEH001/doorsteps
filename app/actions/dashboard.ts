@@ -1,0 +1,323 @@
+"use server"
+
+import { createClient } from "@/lib/supabase/server"
+import type { Role } from "@/app/actions/roles"
+import { ADMIN_TRANSITIONS, isOrderStatus, type OrderStatus } from "@/lib/order-status"
+
+/**
+ * Dashboard server actions.
+ *
+ * Every action re-checks the caller's role on the server before touching data.
+ * Supabase RLS and the `orders_guard` trigger remain the final line of defence;
+ * these checks add defence in depth and enforce the order status workflow,
+ * which the database does not currently enforce on its own.
+ */
+
+export type ActionResult<T = null> = { data: T; error: string | null }
+
+const GENERIC_ERROR = "Something went wrong. Please try again."
+
+type Caller = { supabase: Awaited<ReturnType<typeof createClient>>; userId: string; role: Role; vendorId: string | null }
+
+async function requireRole(allowed: Role[]): Promise<Caller | { error: string }> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: "Please log in again." }
+  const { data: profile, error } = await supabase.from("profiles").select("role, vendor_id").eq("id", user.id).maybeSingle()
+  if (error) {
+    console.error("[dashboard] profile lookup failed", error)
+    return { error: GENERIC_ERROR }
+  }
+  const role = profile?.role as Role | undefined
+  if (!role || !allowed.includes(role)) return { error: "You don't have permission to do that." }
+  return { supabase, userId: user.id, role, vendorId: (profile?.vendor_id as string | null) ?? null }
+}
+
+function fail<T>(data: T, error: unknown, context: string): ActionResult<T> {
+  console.error(`[dashboard] ${context}`, error)
+  return { data, error: GENERIC_ERROR }
+}
+
+/* ----------------------------------------------------------------------------
+ * Admin
+ * ------------------------------------------------------------------------- */
+
+export type AdminOrder = {
+  id: string
+  order_code: string
+  created_at: string
+  customer_name: string
+  phone: string
+  pickup_location: string | null
+  dropoff_location: string
+  status: OrderStatus
+  total: number | null
+  delivery_fee: number | null
+  rider_earning: number | null
+  payment_method: string | null
+  payment_status: string | null
+  payment_reference: string | null
+  paid_at: string | null
+  user_id: string | null
+  rider_id: string | null
+  vendor_id: string | null
+  delivered_at: string | null
+  vendors: { name: string } | null
+}
+
+export type AdminPerson = { id: string; email: string | null; full_name: string | null; role: Role; vendor_id: string | null; created_at: string | null }
+export type RiderLocationRow = { rider_id: string; lat: number; lng: number; updated_at: string }
+export type VendorRow = { id: string; name: string; category: string; is_active: boolean; rating: number | null; delivery_minutes: number | null; created_at: string }
+
+export type AdminWorkspace = {
+  orders: AdminOrder[]
+  people: AdminPerson[]
+  locations: RiderLocationRow[]
+  vendors: VendorRow[]
+  declines: { order_id: string; rider_id: string; created_at: string }[]
+}
+
+const EMPTY_ADMIN: AdminWorkspace = { orders: [], people: [], locations: [], vendors: [], declines: [] }
+
+export async function getAdminWorkspace(): Promise<ActionResult<AdminWorkspace>> {
+  const caller = await requireRole(["admin"])
+  if ("error" in caller) return { data: EMPTY_ADMIN, error: caller.error }
+  try {
+    const { supabase } = caller
+    const [orders, people, locations, vendors, declines] = await Promise.all([
+      supabase
+        .from("orders")
+        .select("id, order_code, created_at, customer_name, phone, pickup_location, dropoff_location, status, total, delivery_fee, rider_earning, payment_method, payment_status, payment_reference, paid_at, user_id, rider_id, vendor_id, delivered_at, vendors(name)")
+        .order("created_at", { ascending: false })
+        .limit(1000),
+      supabase.from("profiles").select("id, email, full_name, role, vendor_id, created_at").order("created_at", { ascending: false }),
+      supabase.from("rider_locations").select("rider_id, lat, lng, updated_at"),
+      // RLS currently exposes only active vendors; inactive ones need an admin policy (see migration).
+      supabase.from("vendors").select("id, name, category, is_active, rating, delivery_minutes, created_at").order("name"),
+      supabase.from("order_declines").select("order_id, rider_id, created_at"),
+    ])
+    const firstError = orders.error ?? people.error ?? locations.error ?? vendors.error ?? declines.error
+    if (firstError) return fail(EMPTY_ADMIN, firstError, "admin workspace query failed")
+    return {
+      data: {
+        orders: (orders.data ?? []).map((row) => ({ ...row, vendors: Array.isArray(row.vendors) ? row.vendors[0] ?? null : row.vendors })) as AdminOrder[],
+        people: (people.data ?? []) as AdminPerson[],
+        locations: (locations.data ?? []) as RiderLocationRow[],
+        vendors: (vendors.data ?? []) as VendorRow[],
+        declines: declines.data ?? [],
+      },
+      error: null,
+    }
+  } catch (error) {
+    return fail(EMPTY_ADMIN, error, "admin workspace crashed")
+  }
+}
+
+export async function adminUpdateOrderStatus(orderId: string, nextStatus: string): Promise<ActionResult> {
+  const caller = await requireRole(["admin"])
+  if ("error" in caller) return { data: null, error: caller.error }
+  if (!isOrderStatus(nextStatus)) return { data: null, error: "Unknown status." }
+  try {
+    const { supabase } = caller
+    const { data: order, error } = await supabase.from("orders").select("status, rider_id").eq("id", orderId).maybeSingle()
+    if (error) return fail(null, error, "admin status lookup failed")
+    if (!order) return { data: null, error: "Order not found." }
+    const current = order.status as OrderStatus
+    if (current === nextStatus) return { data: null, error: null }
+    if (!ADMIN_TRANSITIONS[current]?.includes(nextStatus)) {
+      return { data: null, error: `An order can't move from "${current.replace("_", " ")}" to "${nextStatus.replace("_", " ")}".` }
+    }
+    if (["assigned", "picked_up", "delivered"].includes(nextStatus) && !order.rider_id) {
+      return { data: null, error: "Assign a rider first." }
+    }
+    const values: Record<string, unknown> = { status: nextStatus }
+    // Moving back to "open" releases the rider so another can accept it.
+    if (nextStatus === "confirmed" || nextStatus === "pending") values.rider_id = null
+    if (nextStatus !== "delivered") values.delivered_at = null
+    const { data: updated, error: updateError } = await supabase
+      .from("orders").update(values).eq("id", orderId).eq("status", current).select("id").maybeSingle()
+    if (updateError) return fail(null, updateError, "admin status update failed")
+    return updated ? { data: null, error: null } : { data: null, error: "This order changed while you were editing. Refresh and try again." }
+  } catch (error) {
+    return fail(null, error, "admin status update crashed")
+  }
+}
+
+export async function adminAssignRider(orderId: string, riderId: string): Promise<ActionResult> {
+  const caller = await requireRole(["admin"])
+  if ("error" in caller) return { data: null, error: caller.error }
+  try {
+    const { supabase } = caller
+    const [{ data: rider, error: riderError }, { data: order, error: orderError }] = await Promise.all([
+      supabase.from("profiles").select("id, role").eq("id", riderId).maybeSingle(),
+      supabase.from("orders").select("status").eq("id", orderId).maybeSingle(),
+    ])
+    if (riderError || orderError) return fail(null, riderError ?? orderError, "assign lookup failed")
+    if (!rider || rider.role !== "rider") return { data: null, error: "That person isn't a rider." }
+    if (!order) return { data: null, error: "Order not found." }
+    if (!["confirmed", "assigned", "picked_up"].includes(order.status)) {
+      return { data: null, error: "Only accepted or in-progress orders can be assigned." }
+    }
+    // Reassigning keeps a picked-up order picked up; otherwise it becomes "assigned".
+    const status = order.status === "picked_up" ? "picked_up" : "assigned"
+    const { error } = await supabase.from("orders").update({ rider_id: riderId, status }).eq("id", orderId).eq("status", order.status)
+    if (error) return fail(null, error, "assign rider failed")
+    return { data: null, error: null }
+  } catch (error) {
+    return fail(null, error, "assign rider crashed")
+  }
+}
+
+/* ----------------------------------------------------------------------------
+ * Vendor
+ * ------------------------------------------------------------------------- */
+
+export type VendorOrder = {
+  id: string
+  order_code: string
+  created_at: string
+  customer_name: string
+  phone: string
+  dropoff_location: string
+  item_description: string | null
+  status: OrderStatus
+  subtotal: number | null
+  total: number | null
+  payment_method: string | null
+  payment_status: string | null
+  rider_id: string | null
+  delivered_at: string | null
+  order_items: { item_name: string; unit_price: number; quantity: number }[]
+}
+
+export type VendorMenuItem = { id: string; name: string; description: string | null; price: number; image_url: string | null; is_available: boolean; category: string | null }
+
+export type VendorWorkspace = {
+  vendor: VendorRow | null
+  orders: VendorOrder[]
+  menu: VendorMenuItem[]
+}
+
+const EMPTY_VENDOR: VendorWorkspace = { vendor: null, orders: [], menu: [] }
+
+export async function getVendorWorkspace(): Promise<ActionResult<VendorWorkspace>> {
+  const caller = await requireRole(["vendor"])
+  if ("error" in caller) return { data: EMPTY_VENDOR, error: caller.error }
+  if (!caller.vendorId) return { data: EMPTY_VENDOR, error: "Your account isn't linked to a store yet. Contact DOORS support." }
+  try {
+    const { supabase, vendorId } = caller
+    const [vendor, orders, menu] = await Promise.all([
+      supabase.from("vendors").select("id, name, category, is_active, rating, delivery_minutes, created_at").eq("id", vendorId).maybeSingle(),
+      supabase
+        .from("orders")
+        .select("id, order_code, created_at, customer_name, phone, dropoff_location, item_description, status, subtotal, total, payment_method, payment_status, rider_id, delivered_at, order_items(item_name, unit_price, quantity)")
+        .eq("vendor_id", vendorId)
+        .order("created_at", { ascending: false })
+        .limit(500),
+      supabase.from("menu_items").select("id, name, description, price, image_url, is_available, category").eq("vendor_id", vendorId).order("name"),
+    ])
+    const firstError = vendor.error ?? orders.error ?? menu.error
+    if (firstError) return fail(EMPTY_VENDOR, firstError, "vendor workspace query failed")
+    return {
+      data: { vendor: (vendor.data as VendorRow | null) ?? null, orders: (orders.data ?? []) as VendorOrder[], menu: (menu.data ?? []) as VendorMenuItem[] },
+      error: null,
+    }
+  } catch (error) {
+    return fail(EMPTY_VENDOR, error, "vendor workspace crashed")
+  }
+}
+
+/** Vendors can accept (pending → confirmed) or reject (pending → cancelled) new orders only. */
+export async function vendorRespondToOrder(orderId: string, decision: "accept" | "reject"): Promise<ActionResult> {
+  const caller = await requireRole(["vendor"])
+  if ("error" in caller) return { data: null, error: caller.error }
+  if (!caller.vendorId) return { data: null, error: "Your account isn't linked to a store yet." }
+  try {
+    const status = decision === "accept" ? "confirmed" : "cancelled"
+    const { data, error } = await caller.supabase
+      .from("orders")
+      .update({ status })
+      .eq("id", orderId)
+      .eq("vendor_id", caller.vendorId)
+      .eq("status", "pending")
+      .select("id")
+      .maybeSingle()
+    if (error) return fail(null, error, "vendor respond failed")
+    return data ? { data: null, error: null } : { data: null, error: "This order was already handled. Refreshing…" }
+  } catch (error) {
+    return fail(null, error, "vendor respond crashed")
+  }
+}
+
+/* ----------------------------------------------------------------------------
+ * Rider
+ * ------------------------------------------------------------------------- */
+
+export type RiderOrder = {
+  id: string
+  order_code: string
+  created_at: string
+  customer_name: string
+  phone: string
+  pickup_location: string | null
+  dropoff_location: string
+  dropoff_lat: number | null
+  dropoff_lng: number | null
+  dropoff_note: string | null
+  status: OrderStatus
+  total: number | null
+  delivery_fee: number | null
+  payment_method: string | null
+  payment_status: string | null
+  rider_id: string | null
+  rider_earning: number | null
+  delivered_at: string | null
+  order_items: { item_name: string; unit_price: number; quantity: number }[]
+  vendors: { name: string } | null
+}
+
+export type RiderWorkspace = {
+  riderId: string | null
+  riderName: string | null
+  orders: RiderOrder[]
+  earnings: { day: string; deliveries: number; earnings: number }[]
+}
+
+const EMPTY_RIDER: RiderWorkspace = { riderId: null, riderName: null, orders: [], earnings: [] }
+
+export async function getRiderWorkspace(): Promise<ActionResult<RiderWorkspace>> {
+  const caller = await requireRole(["rider"])
+  if ("error" in caller) return { data: EMPTY_RIDER, error: caller.error }
+  try {
+    const { supabase, userId } = caller
+    const [profile, declines, orders, earnings] = await Promise.all([
+      supabase.from("profiles").select("full_name, email").eq("id", userId).maybeSingle(),
+      supabase.from("order_declines").select("order_id").eq("rider_id", userId),
+      supabase
+        .from("orders")
+        .select("id, order_code, created_at, customer_name, phone, pickup_location, dropoff_location, dropoff_lat, dropoff_lng, dropoff_note, status, total, delivery_fee, payment_method, payment_status, rider_id, rider_earning, delivered_at, order_items(item_name, unit_price, quantity), vendors(name)")
+        .or(`rider_id.eq.${userId},and(status.eq.confirmed,rider_id.is.null)`)
+        .order("created_at", { ascending: false })
+        .limit(300),
+      supabase.from("rider_daily_earnings").select("day, deliveries, earnings").eq("rider_id", userId).order("day", { ascending: false }).limit(60),
+    ])
+    const firstError = declines.error ?? orders.error ?? earnings.error
+    if (firstError) return fail(EMPTY_RIDER, firstError, "rider workspace query failed")
+    const declined = new Set((declines.data ?? []).map((row) => row.order_id))
+    const visible = (orders.data ?? [])
+      .filter((order) => order.rider_id === userId || !declined.has(order.id))
+      .map((row) => ({ ...row, vendors: Array.isArray(row.vendors) ? row.vendors[0] ?? null : row.vendors })) as RiderOrder[]
+    const name = profile.data?.full_name?.trim() || profile.data?.email?.split("@")[0] || null
+    return {
+      data: {
+        riderId: userId,
+        riderName: name,
+        orders: visible,
+        earnings: (earnings.data ?? []).map((row) => ({ day: String(row.day), deliveries: Number(row.deliveries) || 0, earnings: Number(row.earnings) || 0 })),
+      },
+      error: null,
+    }
+  } catch (error) {
+    return fail(EMPTY_RIDER, error, "rider workspace crashed")
+  }
+}
