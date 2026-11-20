@@ -1,7 +1,10 @@
 -- =============================================================================
 -- DOORS dashboard foundation
 -- -----------------------------------------------------------------------------
--- STATUS: NOT APPLIED. Review, test on a Supabase branch, then apply.
+-- STATUS: Section 3 (vendor menu management) APPLIED to production on
+-- 2026-11-19 as migration "dashboard_vendor_menu". Remove section 3 before
+-- applying the rest, or its create policy statements will fail (already exist).
+-- All other sections: NOT APPLIED. Review, test on a Supabase branch, then apply.
 --
 -- Everything here is additive: new columns (with safe defaults), new tables,
 -- new policies and one extra trigger. Nothing is dropped and no existing rows

@@ -148,8 +148,8 @@ export function AdminDashboard() {
           {section === "customers" ? <CustomersSection d={derived} now={now} /> : null}
           {section === "payments" ? <PaymentsSection d={derived} /> : null}
           {section === "reports" ? <ReportsSection d={derived} /> : null}
-          {section === "support" ? <NeedsSetup title="Support tickets aren't stored yet" body="Customers currently reach support outside the app. Once the support_tickets table exists, complaints will appear here with status, assignee and the linked order." items={["Open / in progress / resolved queue", "Link each complaint to an order, customer, vendor or rider", "Admin replies and resolution notes"]} /> : null}
-          {section === "audit" ? <NeedsSetup title="Audit logging isn't enabled yet" body="The migration adds an audit_logs table and a trigger on orders so every status change and rider assignment is recorded automatically, including who made it. Records are read-only, even for admins." items={["Order status changes with old → new values", "Rider assignments and reassignments", "Actor, role and timestamp for every change"]} /> : null}
+          {section === "support" ? <NeedsSetup audience="admin" title="Support tickets aren't stored yet" body="Customers currently reach support outside the app. Once the support_tickets table exists, complaints will appear here with status, assignee and the linked order." items={["Open / in progress / resolved queue", "Link each complaint to an order, customer, vendor or rider", "Admin replies and resolution notes"]} /> : null}
+          {section === "audit" ? <NeedsSetup audience="admin" title="Audit logging isn't enabled yet" body="The migration adds an audit_logs table and a trigger on orders so every status change and rider assignment is recorded automatically, including who made it. Records are read-only, even for admins." items={["Order status changes with old → new values", "Rider assignments and reassignments", "Actor, role and timestamp for every change"]} /> : null}
           {section === "settings" ? <SettingsSection /> : null}
         </>
       )}
@@ -588,7 +588,7 @@ function VendorsSection({ d, workspace }: { d: Derived; workspace: AdminWorkspac
           </div>
         )}
       </Panel>
-      <NeedsSetup title="Vendor approval and editing" body="Right now admins can only see active vendors, and vendors are added directly in Supabase. The migration adds an admin policy to view and manage every vendor, plus an approval status." items={["Approve or suspend vendors", "See hidden or pending vendors", "Edit store details and hours"]} />
+      <NeedsSetup audience="admin" title="Vendor approval and editing" body="Right now admins can only see active vendors, and vendors are added directly in Supabase. The migration adds an admin policy to view and manage every vendor, plus an approval status." items={["Approve or suspend vendors", "See hidden or pending vendors", "Edit store details and hours"]} />
     </div>
   )
 }
@@ -745,7 +745,7 @@ function SettingsSection() {
           </div>
         )}
       </Panel>
-      <NeedsSetup title="Editing settings from the dashboard" body="site_settings has RLS turned on but no policies, so nobody can change it from the app (which is safe). The migration adds an admin-only update policy so you can open/close ordering and manage tester emails here." items={["Open / close ordering", "Edit the closed message", "Manage tester emails"]} />
+      <NeedsSetup audience="admin" title="Editing settings from the dashboard" body="site_settings has RLS turned on but no policies, so nobody can change it from the app (which is safe). The migration adds an admin-only update policy so you can open/close ordering and manage tester emails here." items={["Open / close ordering", "Edit the closed message", "Manage tester emails"]} />
     </div>
   )
 }

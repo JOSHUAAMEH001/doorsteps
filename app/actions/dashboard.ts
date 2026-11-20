@@ -213,7 +213,7 @@ export type VendorOrder = {
   order_items: { item_name: string; unit_price: number; quantity: number }[]
 }
 
-export type VendorMenuItem = { id: string; name: string; description: string | null; price: number; image_url: string | null; is_available: boolean; category: string | null }
+export type VendorMenuItem = { id: string; name: string; description: string | null; price: number; image_url: string | null; is_available: boolean; category: string | null; stock_quantity: number | null }
 
 export type VendorWorkspace = {
   vendor: VendorRow | null
@@ -244,7 +244,7 @@ export async function getVendorWorkspace(previewVendorId?: string): Promise<Acti
         .eq("vendor_id", vendorId)
         .order("created_at", { ascending: false })
         .limit(500),
-      supabase.from("menu_items").select("id, name, description, price, image_url, is_available, category").eq("vendor_id", vendorId).order("name"),
+      supabase.from("menu_items").select("id, name, description, price, image_url, is_available, category, stock_quantity").eq("vendor_id", vendorId).order("name"),
     ])
     const firstError = vendor.error ?? orders.error ?? menu.error
     if (firstError) return fail(EMPTY_VENDOR, firstError, "vendor workspace query failed")
@@ -276,6 +276,72 @@ export async function vendorRespondToOrder(orderId: string, decision: "accept" |
     return data ? { data: null, error: null } : { data: null, error: "This order was already handled. Refreshing…" }
   } catch (error) {
     return fail(null, error, "vendor respond crashed")
+  }
+}
+
+export type MenuItemInput = {
+  name: string
+  description: string | null
+  price: number
+  category: string | null
+  image_url: string | null
+  stock_quantity: number | null
+  is_available: boolean
+}
+
+function cleanMenuInput(input: MenuItemInput): MenuItemInput | { error: string } {
+  const name = String(input.name ?? "").trim()
+  if (name.length < 2 || name.length > 80) return { error: "Name must be 2–80 characters." }
+  const price = Number(input.price)
+  if (!Number.isFinite(price) || price < 0 || price > 1_000_000) return { error: "Enter a valid price." }
+  const description = String(input.description ?? "").trim().slice(0, 300) || null
+  const category = String(input.category ?? "").trim().slice(0, 40) || null
+  const image_url = String(input.image_url ?? "").trim() || null
+  if (image_url && !/^https:\/\/\S+$/i.test(image_url)) return { error: "Photo link must start with https://" }
+  let stock_quantity: number | null = null
+  if (input.stock_quantity !== null && input.stock_quantity !== undefined && String(input.stock_quantity) !== "") {
+    stock_quantity = Number(input.stock_quantity)
+    if (!Number.isInteger(stock_quantity) || stock_quantity < 0) return { error: "Stock must be a whole number, 0 or more." }
+  }
+  return { name, description, price: Math.round(price * 100) / 100, category, image_url, stock_quantity, is_available: Boolean(input.is_available) }
+}
+
+/** Vendors create or edit items on their own menu. RLS also limits this to their store. */
+export async function vendorSaveMenuItem(itemId: string | null, input: MenuItemInput): Promise<ActionResult> {
+  const caller = await requireRole(["vendor"])
+  if ("error" in caller) return { data: null, error: caller.error }
+  if (!caller.vendorId) return { data: null, error: "Your account isn't linked to a store yet." }
+  const clean = cleanMenuInput(input)
+  if ("error" in clean) return { data: null, error: clean.error }
+  try {
+    const query = itemId
+      ? caller.supabase.from("menu_items").update(clean).eq("id", itemId).eq("vendor_id", caller.vendorId)
+      : caller.supabase.from("menu_items").insert({ ...clean, vendor_id: caller.vendorId })
+    const { data, error } = await query.select("id").maybeSingle()
+    if (error) return fail(null, error, "vendor save menu item failed")
+    return data ? { data: null, error: null } : { data: null, error: "That item wasn't found on your menu." }
+  } catch (error) {
+    return fail(null, error, "vendor save menu item crashed")
+  }
+}
+
+/** Quick sold-out / available toggle. */
+export async function vendorSetItemAvailability(itemId: string, isAvailable: boolean): Promise<ActionResult> {
+  const caller = await requireRole(["vendor"])
+  if ("error" in caller) return { data: null, error: caller.error }
+  if (!caller.vendorId) return { data: null, error: "Your account isn't linked to a store yet." }
+  try {
+    const { data, error } = await caller.supabase
+      .from("menu_items")
+      .update({ is_available: isAvailable })
+      .eq("id", itemId)
+      .eq("vendor_id", caller.vendorId)
+      .select("id")
+      .maybeSingle()
+    if (error) return fail(null, error, "vendor availability failed")
+    return data ? { data: null, error: null } : { data: null, error: "That item wasn't found on your menu." }
+  } catch (error) {
+    return fail(null, error, "vendor availability crashed")
   }
 }
 

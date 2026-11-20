@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from "react"
 import useSWR from "swr"
 import {
   BarChart3,
@@ -12,15 +12,28 @@ import {
   Headphones,
   LayoutDashboard,
   MapPin,
+  Pencil,
   Phone,
+  Plus,
   ShoppingBag,
   Star,
   Store,
   UtensilsCrossed,
   Wallet,
+  X,
   XCircle,
 } from "lucide-react"
-import { getPreviewTargets, getVendorWorkspace, vendorRespondToOrder, type VendorOrder, type VendorWorkspace } from "@/app/actions/dashboard"
+import {
+  getPreviewTargets,
+  getVendorWorkspace,
+  vendorRespondToOrder,
+  vendorSaveMenuItem,
+  vendorSetItemAvailability,
+  type MenuItemInput,
+  type VendorMenuItem,
+  type VendorOrder,
+  type VendorWorkspace,
+} from "@/app/actions/dashboard"
 import { useApp } from "@/lib/store"
 import { CatalogImage } from "@/components/app/catalog-image"
 import { AdminPreviewBar, DashboardShell, type NavItem, type ShellNotice } from "@/components/dashboard/shell"
@@ -152,10 +165,10 @@ export function VendorDashboard({ preview = false }: { preview?: boolean }) {
         <>
           {section === "orders" ? <OrdersBoard groups={groups} board={board} setBoard={setBoard} onRespond={respond} now={now} readOnly={preview} /> : null}
           {section === "overview" ? <Overview orders={orders} groups={groups} go={(b) => { setBoard(b); setSection("orders") }} /> : null}
-          {section === "menu" ? <MenuSection workspace={workspace} /> : null}
+          {section === "menu" ? <MenuSection workspace={workspace} readOnly={preview} onChanged={() => mutate()} notify={(m, tone) => toasts.push(m, tone)} /> : null}
           {section === "earnings" ? <EarningsSection orders={orders} /> : null}
           {section === "store" ? <StoreSection workspace={workspace} /> : null}
-          {section === "reviews" ? <NeedsSetup title="Customer reviews aren't collected yet" body="The store rating you see is set by DOORS. Once customers can rate delivered orders, their reviews and your average rating will show here." items={["Star rating and comment per delivered order", "Reply to reviews", "Rating trend over time"]} /> : null}
+          {section === "reviews" ? <NeedsSetup title="Customer reviews" body="Soon customers will be able to rate their order after delivery. Their reviews and your average rating will show up here." items={["Star rating and comment for each delivered order", "Reply to your customers", "See how your rating changes over time"]} /> : null}
           {section === "support" ? <SupportSection /> : null}
         </>
       )}
@@ -364,41 +377,168 @@ function EarningsSection({ orders }: { orders: VendorOrder[] }) {
  * Menu, store, support
  * ------------------------------------------------------------------------- */
 
-function MenuSection({ workspace }: { workspace: VendorWorkspace }) {
+function MenuSection({ workspace, readOnly, onChanged, notify }: { workspace: VendorWorkspace; readOnly: boolean; onChanged: () => Promise<unknown>; notify: (message: string, tone?: "error") => void }) {
   const [query, setQuery] = useState("")
+  const [editing, setEditing] = useState<VendorMenuItem | "new" | null>(null)
+  const [toggling, setToggling] = useState<string | null>(null)
   const q = query.trim().toLowerCase()
   const items = workspace.menu.filter((m) => !q || m.name.toLowerCase().includes(q) || m.category?.toLowerCase().includes(q))
   const byCategory = new Map<string, typeof items>()
   for (const item of items) byCategory.set(item.category || "Other", [...(byCategory.get(item.category || "Other") ?? []), item])
+  const live = workspace.menu.filter((m) => m.is_available).length
+  const categories = [...new Set(workspace.menu.map((m) => m.category).filter(Boolean))] as string[]
+
+  async function toggle(item: VendorMenuItem) {
+    setToggling(item.id)
+    const result = await vendorSetItemAvailability(item.id, !item.is_available)
+    if (result.error) notify(result.error, "error")
+    else notify(item.is_available ? `${item.name} marked sold out.` : `${item.name} is available again.`)
+    await onChanged()
+    setToggling(null)
+  }
 
   return (
     <div className="flex flex-col gap-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-sm text-muted-foreground"><span className="font-bold text-foreground">{workspace.menu.length}</span> items live on your menu</p>
-        <SearchInput value={query} onChange={setQuery} placeholder="Search menu…" className="sm:w-72" />
+        <p className="text-sm text-muted-foreground"><span className="font-bold text-foreground">{live}</span> of {workspace.menu.length} items available</p>
+        <div className="flex gap-2">
+          <SearchInput value={query} onChange={setQuery} placeholder="Search menu…" className="min-w-0 flex-1 sm:w-72" />
+          {!readOnly ? <ActionButton onClick={() => setEditing("new")}><Plus aria-hidden="true" className="size-4" />Add item</ActionButton> : null}
+        </div>
       </div>
-      {items.length === 0 ? <Panel><EmptyState icon={UtensilsCrossed} title={q ? "No matching items" : "No items on your menu yet"} body={q ? undefined : "Contact DOORS to add your products."} /></Panel> : (
+      {items.length === 0 ? <Panel><EmptyState icon={UtensilsCrossed} title={q ? "No matching items" : "No items on your menu yet"} body={q ? undefined : readOnly ? undefined : "Tap “Add item” to put your first product on DOORS."} /></Panel> : (
         [...byCategory.entries()].map(([category, list]) => (
           <Panel key={category} title={`${category} · ${list.length}`} bodyClassName="p-0">
             <ul className="grid sm:grid-cols-2">
               {list.map((item) => (
-                <li key={item.id} className="flex items-center gap-3 border-b border-border p-4 sm:odd:border-r">
-                  <div className="relative size-14 shrink-0 overflow-hidden rounded-xl bg-secondary">
+                <li key={item.id} className={`flex items-center gap-3 border-b border-border p-4 sm:odd:border-r ${item.is_available ? "" : "bg-secondary/40"}`}>
+                  <div className={`relative size-14 shrink-0 overflow-hidden rounded-xl bg-secondary ${item.is_available ? "" : "opacity-50 grayscale"}`}>
                     <CatalogImage name={item.name} imageUrl={item.image_url} sizes="56px" />
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-bold text-foreground">{item.name}</p>
                     {item.description ? <p className="truncate text-xs text-muted-foreground">{item.description}</p> : null}
-                    <p className="mt-0.5 text-sm font-extrabold tabular-nums text-foreground">{naira(item.price)}</p>
+                    <p className="mt-0.5 text-sm font-extrabold tabular-nums text-foreground">
+                      {naira(item.price)}
+                      {item.stock_quantity !== null ? <span className="ml-2 text-[11px] font-semibold text-muted-foreground">{item.stock_quantity} in stock</span> : null}
+                    </p>
                   </div>
-                  <Badge tone={item.is_available ? "success" : "neutral"}>{item.is_available ? "Available" : "Sold out"}</Badge>
+                  <div className="flex shrink-0 flex-col items-end gap-2">
+                    {readOnly ? (
+                      <Badge tone={item.is_available ? "success" : "neutral"}>{item.is_available ? "Available" : "Sold out"}</Badge>
+                    ) : (
+                      <>
+                        <button
+                          type="button"
+                          role="switch"
+                          aria-checked={item.is_available}
+                          aria-label={`${item.name} available`}
+                          disabled={toggling === item.id}
+                          onClick={() => void toggle(item)}
+                          className="disabled:opacity-50"
+                        >
+                          <Badge tone={item.is_available ? "success" : "neutral"}>{toggling === item.id ? "Saving…" : item.is_available ? "Available" : "Sold out"}</Badge>
+                        </button>
+                        <button type="button" onClick={() => setEditing(item)} className="inline-flex items-center gap-1 text-xs font-bold text-brand hover:underline">
+                          <Pencil aria-hidden="true" className="size-3" />Edit
+                        </button>
+                      </>
+                    )}
+                  </div>
                 </li>
               ))}
             </ul>
           </Panel>
         ))
       )}
-      <NeedsSetup title="Editing your menu from here" body="Vendors can currently view their menu but not change it. Supabase has no policy that lets a vendor update their own menu_items. The migration adds one, limited to your own store, so you can manage items yourself." items={["Mark items sold out / available instantly", "Edit price, name, description and photo", "Add new products and grocery stock levels"]} />
+      {!readOnly ? <p className="text-[11px] text-muted-foreground">Tap a status to switch an item between Available and Sold out. Sold-out items stay on your list but customers can't order them.</p> : null}
+      {editing ? (
+        <MenuItemEditor
+          item={editing === "new" ? null : editing}
+          categories={categories}
+          onClose={() => setEditing(null)}
+          onSaved={async (message) => { notify(message); setEditing(null); await onChanged() }}
+          onError={(message) => notify(message, "error")}
+        />
+      ) : null}
+    </div>
+  )
+}
+
+function MenuItemEditor({ item, categories, onClose, onSaved, onError }: { item: VendorMenuItem | null; categories: string[]; onClose: () => void; onSaved: (message: string) => Promise<void>; onError: (message: string) => void }) {
+  const [form, setForm] = useState({
+    name: item?.name ?? "",
+    description: item?.description ?? "",
+    price: item ? String(item.price) : "",
+    category: item?.category ?? "",
+    image_url: item?.image_url ?? "",
+    stock_quantity: item?.stock_quantity !== null && item?.stock_quantity !== undefined ? String(item.stock_quantity) : "",
+    is_available: item?.is_available ?? true,
+  })
+  const [busy, setBusy] = useState(false)
+  const set = (key: keyof typeof form) => (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setForm((f) => ({ ...f, [key]: e.target.value }))
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose() }
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+  }, [onClose])
+
+  async function submit(e: FormEvent) {
+    e.preventDefault()
+    setBusy(true)
+    const input: MenuItemInput = {
+      name: form.name,
+      description: form.description || null,
+      price: Number(form.price),
+      category: form.category || null,
+      image_url: form.image_url || null,
+      stock_quantity: form.stock_quantity === "" ? null : Number(form.stock_quantity),
+      is_available: form.is_available,
+    }
+    const result = await vendorSaveMenuItem(item?.id ?? null, input)
+    setBusy(false)
+    if (result.error) onError(result.error)
+    else await onSaved(item ? `${input.name.trim()} updated.` : `${input.name.trim()} added to your menu.`)
+  }
+
+  const inputClass = "mt-1 w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm text-foreground outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
+  const labelClass = "text-xs font-semibold text-muted-foreground"
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center" onClick={onClose}>
+      <form
+        role="dialog"
+        aria-modal="true"
+        aria-label={item ? `Edit ${item.name}` : "Add menu item"}
+        onClick={(e) => e.stopPropagation()}
+        onSubmit={(e) => void submit(e)}
+        className="max-h-[92dvh] w-full overflow-y-auto rounded-t-2xl bg-card p-5 shadow-xl sm:max-w-md sm:rounded-2xl"
+      >
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="text-base font-extrabold text-foreground">{item ? "Edit item" : "Add item"}</h2>
+          <button type="button" onClick={onClose} aria-label="Close" className="rounded-lg p-1.5 text-muted-foreground hover:bg-secondary"><X aria-hidden="true" className="size-4" /></button>
+        </div>
+        <div className="flex flex-col gap-3.5">
+          <label className={labelClass}>Name<input required minLength={2} maxLength={80} value={form.name} onChange={set("name")} className={inputClass} /></label>
+          <label className={labelClass}>Description<textarea rows={2} maxLength={300} value={form.description} onChange={set("description")} className={inputClass} /></label>
+          <div className="grid grid-cols-2 gap-3">
+            <label className={labelClass}>Price (₦)<input required type="number" inputMode="decimal" min={0} step="any" value={form.price} onChange={set("price")} className={inputClass} /></label>
+            <label className={labelClass}>Stock (optional)<input type="number" inputMode="numeric" min={0} step={1} value={form.stock_quantity} onChange={set("stock_quantity")} placeholder="Not tracked" className={inputClass} /></label>
+          </div>
+          <label className={labelClass}>Category<input list="menu-categories" maxLength={40} value={form.category} onChange={set("category")} className={inputClass} /></label>
+          <datalist id="menu-categories">{categories.map((c) => <option key={c} value={c} />)}</datalist>
+          <label className={labelClass}>Photo link (optional)<input type="url" inputMode="url" placeholder="https://…" value={form.image_url} onChange={set("image_url")} className={inputClass} /></label>
+          <label className="flex items-center gap-2.5 text-sm font-semibold text-foreground">
+            <input type="checkbox" checked={form.is_available} onChange={(e) => setForm((f) => ({ ...f, is_available: e.target.checked }))} className="size-4 accent-[var(--brand)]" />
+            Available to order
+          </label>
+        </div>
+        <div className="mt-5 flex gap-2">
+          <ActionButton variant="secondary" onClick={onClose} className="flex-1">Cancel</ActionButton>
+          <ActionButton type="submit" busy={busy} className="flex-1">{item ? "Save changes" : "Add to menu"}</ActionButton>
+        </div>
+      </form>
     </div>
   )
 }
@@ -420,8 +560,8 @@ function StoreSection({ workspace }: { workspace: VendorWorkspace }) {
         )}
       </Panel>
       <div className="grid gap-5 lg:grid-cols-2">
-        <NeedsSetup title="Open / close your store" body="Today a store is either listed or hidden by DOORS. The migration adds an is_open switch you control, so customers see 'Closed' instead of the store disappearing." />
-        <NeedsSetup title="Operating hours" body="Set opening hours per day. Customers will see when you open next, and ordering pauses automatically outside your hours." />
+        <NeedsSetup title="Open / close your store" body="Soon you'll be able to close your store with one tap when you're busy or out of stock. Customers will see “Closed” and can come back later. For now, message DOORS support and we'll do it for you." />
+        <NeedsSetup title="Opening hours" body="Soon you'll be able to set your hours for each day. Customers will see when you open next, and orders will pause automatically when you're closed." />
       </div>
     </div>
   )
