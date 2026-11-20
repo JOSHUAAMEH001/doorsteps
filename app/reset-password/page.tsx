@@ -5,6 +5,7 @@ import { Eye, EyeOff, LoaderCircle } from "lucide-react"
 import { Logo } from "@/components/brand/logo"
 import { PrimaryButton } from "@/components/app/ui"
 import { createClient } from "@/lib/supabase/client"
+import { clearPendingRecovery } from "@/lib/auth-recovery"
 
 function getPasswordUpdateErrorMessage(error: unknown) {
   const authError = (error ?? {}) as { code?: string; message?: string }
@@ -56,7 +57,34 @@ export default function ResetPasswordPage() {
 
     const checkSession = async () => {
       try {
+        const url = new URL(window.location.href)
+        const hash = new URLSearchParams(url.hash.replace(/^#/, ""))
+        // Supabase reports expired/used links as error params on the redirect.
+        if (url.searchParams.get("error_code") || hash.get("error_code") || url.searchParams.get("error") || hash.get("error")) {
+          if (active) setReady("expired")
+          return
+        }
+
+        // PKCE flow: the email link arrives as ?code=..., which must be exchanged for a session.
+        const code = url.searchParams.get("code")
+        if (code) {
+          const { error } = await supabase.auth.exchangeCodeForSession(code)
+          window.history.replaceState(null, "", url.pathname)
+          clearPendingRecovery()
+          if (!active) return
+          if (error) {
+            // The code may already have been exchanged (e.g. React strict mode re-run).
+            const { data } = await supabase.auth.getSession()
+            if (active) setReady(data.session ? "ready" : "expired")
+          } else {
+            setReady("ready")
+          }
+          return
+        }
+
+        // Implicit flow (#access_token=...&type=recovery) is picked up by the client automatically.
         const { data } = await supabase.auth.getSession()
+        if (data.session) clearPendingRecovery()
         if (active) setReady(data.session ? "ready" : "expired")
       } catch {
         if (active) setReady("expired")
