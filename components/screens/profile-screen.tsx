@@ -16,6 +16,7 @@ import type { LucideIcon } from "lucide-react"
 import { useApp } from "@/lib/store"
 import type { Screen } from "@/lib/store"
 import { ScreenHeader } from "@/components/app/ui"
+import { useSignOut } from "@/components/dashboard/shell"
 
 interface Row {
   icon: LucideIcon
@@ -26,6 +27,7 @@ interface Row {
 
 export function ProfileScreen() {
   const { navigate, userName, isGuest } = useApp()
+  const { signOut, busy: signingOut } = useSignOut()
 
   const account: Row[] = [
     { icon: MapPin, label: "Saved addresses", value: "3 saved" },
@@ -92,11 +94,12 @@ export function ProfileScreen() {
       <div className="px-5 pt-4">
         <button
           type="button"
-          onClick={() => navigate("auth")}
-          className="flex w-full items-center justify-center gap-2 rounded-2xl border border-border bg-background py-3.5 text-sm font-bold text-brand transition-colors active:bg-secondary"
+          onClick={() => void signOut()}
+          disabled={signingOut}
+          className="flex w-full disabled:opacity-60 items-center justify-center gap-2 rounded-2xl border border-border bg-background py-3.5 text-sm font-bold text-brand transition-colors active:bg-secondary"
         >
           <LogOut className="h-4 w-4" />
-          Log out
+          {signingOut ? "Signing out…" : "Log out"}
         </button>
         <p className="mt-4 text-center text-[11px] text-muted-foreground">
           Doorsteps Logistics • Version 1.0.0

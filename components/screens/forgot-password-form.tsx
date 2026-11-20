@@ -5,6 +5,7 @@ import { LoaderCircle } from "lucide-react"
 import { Logo } from "@/components/brand/logo"
 import { PrimaryButton } from "@/components/app/ui"
 import { createClient } from "@/lib/supabase/client"
+import { RECOVERY_FLAG } from "@/lib/auth-recovery"
 
 const confirmation = "If that email exists, a reset link has been sent. Check your inbox and spam folder."
 
@@ -28,8 +29,11 @@ export function ForgotPasswordForm({ initialEmail }: { initialEmail: string }) {
 
     try {
       const { error } = await createClient().auth.resetPasswordForEmail(email.trim(), {
-        redirectTo: `${window.location.origin}/auth/reset-password`,
+        redirectTo: `${window.location.origin}/reset-password`,
       })
+      // If Supabase falls back to the Site URL (redirect URL not allow-listed), the home page
+      // uses this marker to forward the recovery code to /reset-password instead of the splash.
+      try { window.localStorage.setItem(RECOVERY_FLAG, String(Date.now())) } catch { /* storage unavailable */ }
 
       if (error) {
         const { code, status } = error as { code?: string; status?: number }

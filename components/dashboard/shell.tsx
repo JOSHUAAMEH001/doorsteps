@@ -12,21 +12,25 @@ export type NavItem<T extends string> = { id: T; label: string; icon: LucideIcon
 
 export type ShellNotice = { id: string; title: string; body: string; time: string; onOpen?: () => void }
 
-/** Ends the Supabase session for real, clears cached data, and returns to sign-in. */
+/** Ends the Supabase session for real, clears cached data, and reloads onto sign-in. */
 export function useSignOut() {
-  const { navigate } = useApp()
   const { mutate } = useSWRConfig()
   const [busy, setBusy] = useState(false)
   async function signOut() {
+    if (busy) return
     setBusy(true)
+    const supabase = createClient()
     try {
-      await createClient().auth.signOut()
+      const { error } = await supabase.auth.signOut()
+      // A network/server failure must not leave the user signed in on this device.
+      if (error) await supabase.auth.signOut({ scope: "local" })
     } catch (error) {
       console.error("[auth] sign out failed", error)
+      try { await supabase.auth.signOut({ scope: "local" }) } catch { /* cookies cleared below by reload */ }
     }
     await mutate(() => true, undefined, { revalidate: false })
-    setBusy(false)
-    navigate("auth")
+    // Full reload so no in-memory user, role or cart state survives the sign-out.
+    window.location.replace("/?auth=login")
   }
   return { signOut, busy }
 }

@@ -36,6 +36,7 @@ import { SettingsScreen } from "@/components/screens/settings-screen"
 import { BrandLogo } from "@/components/brand/logo"
 import { cn } from "@/lib/utils"
 import { useSignOut } from "@/components/dashboard/shell"
+import { hasPendingRecovery } from "@/lib/auth-recovery"
 
 /** Role dashboards render their own full-screen layout (sidebar, header, mobile nav). */
 const WORKSPACE_SCREENS = new Set<Screen>(["vendorDashboard", "riderDashboard", "adminDashboard"])
@@ -77,7 +78,27 @@ function getNavigationItems(role: ReturnType<typeof useApp>["role"]): Navigation
   return items
 }
 
+/**
+ * Auth emails can land on "/" (Supabase falls back to the Site URL when a redirect URL
+ * isn't allow-listed). Forward password-recovery links to the reset page and sign-up
+ * confirmations to the callback, instead of showing the splash/sign-up screen.
+ */
+function useForwardAuthLinks() {
+  useEffect(() => {
+    const url = new URL(window.location.href)
+    const hash = new URLSearchParams(url.hash.replace(/^#/, ""))
+    const code = url.searchParams.get("code")
+    const isRecovery = hash.get("type") === "recovery" || url.searchParams.get("type") === "recovery"
+    if (isRecovery || ((code || hash.get("error_code")) && hasPendingRecovery())) {
+      window.location.replace(`/reset-password${url.search}${url.hash}`)
+    } else if (code) {
+      window.location.replace(`/auth/callback?code=${encodeURIComponent(code)}`)
+    }
+  }, [])
+}
+
 export function AppShell() {
+  useForwardAuthLinks()
   const { screen, role } = useApp()
   const showNav = TAB_SCREENS.has(screen)
   const isWorkspace = WORKSPACE_SCREENS.has(screen)
