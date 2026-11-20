@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, type FormEvent } from "react"
 import { Eye, EyeOff, LoaderCircle } from "lucide-react"
 import { Logo } from "@/components/brand/logo"
 import { PrimaryButton } from "@/components/app/ui"
-import { createClient } from "@/lib/supabase/client"
+import { createRecoveryClient } from "@/lib/supabase/client"
 import { clearPendingRecovery } from "@/lib/auth-recovery"
 
 function getPasswordUpdateErrorMessage(error: unknown) {
@@ -35,8 +35,48 @@ function getPasswordUpdateErrorMessage(error: unknown) {
   return "We couldn't update your password. Please try again or request a new reset link."
 }
 
+type RecoveryClient = ReturnType<typeof createRecoveryClient>
+type LinkResult = { email: string } | { error: true }
+
+// Dedupes the one-time code exchange if the effect runs twice (React strict mode).
+const linkChecks = new Map<string, Promise<LinkResult>>()
+
+/**
+ * Verifies the recovery link in the URL and returns the account it belongs to.
+ * Only a valid link counts: an existing signed-in session is never reused, otherwise the
+ * reset would change the password of whichever account was already logged in.
+ */
+function verifyRecoveryLink(supabase: RecoveryClient, url: URL): Promise<LinkResult> {
+  const hash = new URLSearchParams(url.hash.replace(/^#/, ""))
+  if (url.searchParams.get("error") || url.searchParams.get("error_code") || hash.get("error") || hash.get("error_code")) {
+    return Promise.resolve({ error: true })
+  }
+
+  const code = url.searchParams.get("code")
+  const accessToken = hash.get("access_token")
+  const refreshToken = hash.get("refresh_token")
+  const key = code ?? accessToken
+  if (!key) return Promise.resolve({ error: true })
+
+  const existing = linkChecks.get(key)
+  if (existing) return existing
+
+  const check = (async (): Promise<LinkResult> => {
+    const { data, error } = code
+      ? await supabase.auth.exchangeCodeForSession(code)
+      : hash.get("type") === "recovery" && refreshToken
+        ? await supabase.auth.setSession({ access_token: accessToken!, refresh_token: refreshToken })
+        : { data: { session: null }, error: true }
+    const email = data.session?.user.email
+    return error || !email ? { error: true } : { email }
+  })()
+  linkChecks.set(key, check)
+  return check
+}
+
 export default function ResetPasswordPage() {
   const [ready, setReady] = useState<"checking" | "ready" | "expired">("checking")
+  const [accountEmail, setAccountEmail] = useState("")
   const [password, setPassword] = useState("")
   const [confirm, setConfirm] = useState("")
   const [showPassword, setShowPassword] = useState(false)
@@ -45,57 +85,31 @@ export default function ResetPasswordPage() {
   const [updated, setUpdated] = useState(false)
   const [message, setMessage] = useState("")
   const requestInFlight = useRef(false)
+  const clientRef = useRef<RecoveryClient | null>(null)
 
   useEffect(() => {
-    const supabase = createClient()
     let active = true
+    // Read the link before anything can rewrite the URL.
+    const url = new URL(window.location.href)
+    const supabase = clientRef.current ?? createRecoveryClient()
+    clientRef.current = supabase
 
-    const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
-      if (!active) return
-      if (event === "PASSWORD_RECOVERY" || session) setReady("ready")
-    })
-
-    const checkSession = async () => {
-      try {
-        const url = new URL(window.location.href)
-        const hash = new URLSearchParams(url.hash.replace(/^#/, ""))
-        // Supabase reports expired/used links as error params on the redirect.
-        if (url.searchParams.get("error_code") || hash.get("error_code") || url.searchParams.get("error") || hash.get("error")) {
-          if (active) setReady("expired")
-          return
+    verifyRecoveryLink(supabase, url)
+      .then((result) => {
+        // Remove one-time tokens from the address bar and browser history.
+        window.history.replaceState(null, "", url.pathname)
+        clearPendingRecovery()
+        if (!active) return
+        if ("email" in result) {
+          setAccountEmail(result.email)
+          setReady("ready")
+        } else {
+          setReady("expired")
         }
+      })
+      .catch(() => { if (active) setReady("expired") })
 
-        // PKCE flow: the email link arrives as ?code=..., which must be exchanged for a session.
-        const code = url.searchParams.get("code")
-        if (code) {
-          const { error } = await supabase.auth.exchangeCodeForSession(code)
-          window.history.replaceState(null, "", url.pathname)
-          clearPendingRecovery()
-          if (!active) return
-          if (error) {
-            // The code may already have been exchanged (e.g. React strict mode re-run).
-            const { data } = await supabase.auth.getSession()
-            if (active) setReady(data.session ? "ready" : "expired")
-          } else {
-            setReady("ready")
-          }
-          return
-        }
-
-        // Implicit flow (#access_token=...&type=recovery) is picked up by the client automatically.
-        const { data } = await supabase.auth.getSession()
-        if (data.session) clearPendingRecovery()
-        if (active) setReady(data.session ? "ready" : "expired")
-      } catch {
-        if (active) setReady("expired")
-      }
-    }
-
-    void checkSession()
-    return () => {
-      active = false
-      listener.subscription.unsubscribe()
-    }
+    return () => { active = false }
   }, [])
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -108,11 +122,15 @@ export default function ResetPasswordPage() {
     setLoading(true)
     setMessage("")
     try {
-      const { error } = await createClient().auth.updateUser({ password })
+      const supabase = clientRef.current
+      if (!supabase) { setReady("expired"); return }
+      const { error } = await supabase.auth.updateUser({ password })
       if (error) {
         setMessage(getPasswordUpdateErrorMessage(error))
         return
       }
+      // End the recovery session so the user signs in with the new password.
+      await supabase.auth.signOut({ scope: "local" }).catch(() => undefined)
       setUpdated(true)
       window.setTimeout(() => { window.location.href = "/?auth=login" }, 2000)
     } catch {
@@ -143,6 +161,7 @@ export default function ResetPasswordPage() {
           <p role="status" aria-live="polite" className="mt-5 rounded-2xl border border-success/20 bg-success-soft px-4 py-3 text-sm font-semibold text-success">Password updated. Redirecting to login...</p>
         ) : (
           <form onSubmit={handleSubmit} className="mt-7 flex flex-col gap-5">
+            <p className="-mt-2 text-sm text-muted-foreground">Setting a new password for <span className="font-semibold text-foreground">{accountEmail}</span></p>
             <label className="block text-sm font-semibold text-foreground" htmlFor="new-password">
               New password
               <span className="relative mt-2 block">
