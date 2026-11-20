@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState, type ReactNode } from "react"
-import { AlertTriangle, CheckCircle2, Database, Inbox, Search, X, type LucideIcon } from "lucide-react"
+import { AlertTriangle, CheckCircle2, Database, Inbox, Search, Sparkles, X, type LucideIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { STATUS_META, type OrderStatus, type Tone } from "@/lib/order-status"
 
@@ -182,15 +182,23 @@ export function EmptyState({ icon: Icon = Inbox, title, body, action }: { icon?:
   )
 }
 
-/** Honest placeholder for features that need a database change before they can work. */
-export function NeedsSetup({ title, body, items }: { title: string; body: string; items?: string[] }) {
+/**
+ * Placeholder for a feature that isn't switched on yet.
+ * Vendors and riders (the default) see a friendly "Coming soon" card only.
+ * Pass audience="admin" to also show the technical setup note; never use that
+ * on vendor or rider screens.
+ */
+export function NeedsSetup({ title, body, items, audience = "partner" }: { title: string; body: string; items?: string[]; audience?: "admin" | "partner" }) {
+  const isAdmin = audience === "admin"
+  const Icon = isAdmin ? Database : Sparkles
   return (
     <div className="rounded-2xl border border-dashed border-border bg-card p-6">
       <div className="flex items-start gap-4">
         <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-secondary text-muted-foreground">
-          <Database aria-hidden="true" className="size-5" />
+          <Icon aria-hidden="true" className="size-5" />
         </span>
         <div className="min-w-0">
+          {!isAdmin ? <Badge tone="neutral" className="mb-2">Coming soon</Badge> : null}
           <p className="text-sm font-bold text-foreground">{title}</p>
           <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{body}</p>
           {items?.length ? (
@@ -198,7 +206,7 @@ export function NeedsSetup({ title, body, items }: { title: string; body: string
               {items.map((item) => <li key={item} className="flex gap-2"><span aria-hidden="true" className="mt-1.5 size-1 shrink-0 rounded-full bg-muted-foreground" />{item}</li>)}
             </ul>
           ) : null}
-          <p className="mt-3 text-[11px] font-semibold text-muted-foreground">Needs database migration · supabase/migrations/20261119_dashboard_foundation.sql</p>
+          {isAdmin ? <p className="mt-3 text-[11px] font-semibold text-muted-foreground">Needs database migration · supabase/migrations/20261119_dashboard_foundation.sql</p> : null}
         </div>
       </div>
     </div>
