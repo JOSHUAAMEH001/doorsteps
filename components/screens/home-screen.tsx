@@ -15,6 +15,14 @@ import { VendorCard, VendorCardSkeleton, VendorTile, VendorTileSkeleton } from "
 import { LoadingState } from "@/components/app/ui"
 import { categories, formatNaira, type CategoryId } from "@/lib/data"
 import { useApp } from "@/lib/store"
+import { isTrackable } from "@/lib/order-status"
+
+const ACTIVE_LABEL: Record<string, string> = {
+  pending: "Waiting for the vendor",
+  confirmed: "Being prepared",
+  assigned: "Rider assigned",
+  picked_up: "Order on the way",
+}
 
 const categoryIcons: Record<CategoryId, typeof Utensils> = {
   food: Utensils,
@@ -25,7 +33,7 @@ const categoryIcons: Record<CategoryId, typeof Utensils> = {
 
 export function HomeScreen() {
   const { navigate, userName, vendors, vendorsLoading, vendorsError, orders, ordersLoading, isAdmin } = useApp()
-  const activeOrder = orders.find((o) => ["assigned", "picked_up", "on_the_way"].includes(o.status))
+  const activeOrder = orders.find((o) => isTrackable(o.status))
 
   return (
     <div className="pb-6">
@@ -124,7 +132,7 @@ export function HomeScreen() {
             </span>
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-bold text-foreground">
-                {activeOrder.status === "assigned" ? "Rider assigned" : "Order on the way"}
+                {ACTIVE_LABEL[activeOrder.status] ?? "Track your order"}
               </p>
               <p className="truncate text-xs text-muted-foreground">
                 {activeOrder.vendorName} • {activeOrder.id}
@@ -201,7 +209,7 @@ export function HomeScreen() {
               key={o.id}
               type="button"
               onClick={() =>
-                ["assigned", "picked_up", "on_the_way"].includes(o.status)
+                isTrackable(o.status)
                   ? navigate("tracking", { vendorId: o.vendorId ?? undefined, orderCode: o.id })
                   : navigate("orders")
               }
