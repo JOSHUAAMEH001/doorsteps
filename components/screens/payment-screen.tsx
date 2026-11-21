@@ -190,6 +190,10 @@ export function PaymentScreen() {
                 phone: deliveryDetails.phone,
                 pickupLocation: vendor.name,
                 dropoffLocation: deliveryDetails.address,
+                dropoffLat: deliveryDetails.dropoffLat,
+                dropoffLng: deliveryDetails.dropoffLng,
+                // Room/hostel/landmark first, then any extra instructions, for the rider.
+                dropoffNote: [deliveryDetails.landmark, deliveryDetails.instructions.trim()].filter(Boolean).join(" · "),
                 itemDescription: cart.map((line) => `${line.qty}x ${line.product.name}`).join(", "),
                 vendorId,
                 subtotal: cartSubtotal,

@@ -1,6 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { sanitizeDropoff } from '@/lib/geo'
 
 export type CheckoutItem = {
   menuItemId: string
@@ -14,6 +15,11 @@ export type CheckoutInput = {
   phone: string
   pickupLocation: string
   dropoffLocation: string
+  /** Pinned drop-off point. Only stored when it is a valid coordinate inside Nigeria. */
+  dropoffLat?: number | null
+  dropoffLng?: number | null
+  /** Room / hostel / landmark and instructions for the rider. */
+  dropoffNote?: string | null
   itemDescription: string
   vendorId: string
   subtotal: number
@@ -62,6 +68,12 @@ export async function submitCheckout(input: CheckoutInput): Promise<OrderResult>
     const deliveryFee = Math.max(0, Number(input.deliveryFee) || 0)
     const total = subtotal + deliveryFee
 
+    // Anything that isn't a finite coordinate inside Nigeria is stored as null.
+    const dropoff = sanitizeDropoff(input.dropoffLat, input.dropoffLng)
+    const dropoffNote = typeof input.dropoffNote === 'string' && input.dropoffNote.trim()
+      ? input.dropoffNote.trim().slice(0, 300)
+      : null
+
     const { data: order, error: orderError } = await supabase
       .from('orders')
       .insert({
@@ -69,6 +81,9 @@ export async function submitCheckout(input: CheckoutInput): Promise<OrderResult>
         phone: input.phone.trim(),
         pickup_location: input.pickupLocation.trim(),
         dropoff_location: input.dropoffLocation.trim(),
+        dropoff_lat: dropoff.lat,
+        dropoff_lng: dropoff.lng,
+        dropoff_note: dropoffNote,
         item_description: input.itemDescription.trim(),
         vendor_id: input.vendorId,
         subtotal,
