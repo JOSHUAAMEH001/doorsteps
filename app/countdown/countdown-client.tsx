@@ -3,7 +3,7 @@
 import Image from "next/image"
 import { useEffect, useState } from "react"
 
-const TARGET_TIME = new Date("2026-12-01T00:00:00+01:00").getTime()
+const TARGET_TIME = new Date("2026-12-06T00:00:00+01:00").getTime()
 
 type Countdown = { days: number; hours: number; minutes: number; seconds: number }
 
@@ -37,7 +37,7 @@ export default function CountdownClient() {
       <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 bottom-[-1.25rem] overflow-hidden text-center text-[clamp(4.5rem,22vw,15rem)] font-black leading-none tracking-[-0.08em] text-transparent [-webkit-text-stroke:1px_rgba(255,255,255,0.18)]">DOORS</div>
       <div className="relative z-10 flex w-full max-w-3xl flex-col items-center text-center">
         <Image src="/brand/doors-logo-white.png" alt="DOORS" width={1104} height={243} priority className="mb-8 h-auto w-[min(62vw,300px)] object-contain" />
-        <h1 className="max-w-xl text-balance text-3xl font-extrabold tracking-[-0.04em] sm:text-5xl">We launch on December 1st</h1>
+        <h1 className="max-w-xl text-balance text-3xl font-extrabold tracking-[-0.04em] sm:text-5xl">We launch on December 6th</h1>
         <div className="mt-9 min-h-[7.5rem] w-full">
           {isLive ? <p className="pt-8 text-3xl font-extrabold sm:text-5xl">We are live!</p> : <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4" aria-live="polite" aria-label="Launch countdown">
             {units.map(([label, value]) => <div key={label} className="rounded-2xl border border-white/20 bg-white/15 px-3 py-4 shadow-lg backdrop-blur-sm sm:px-4 sm:py-5"><div className="text-4xl font-black tabular-nums tracking-[-0.06em] sm:text-6xl">{mounted ? String(value).padStart(2, "0") : "--"}</div><div className="mt-1 text-[0.65rem] font-extrabold tracking-[0.18em] text-white/85 sm:text-xs">{label}</div></div>)}
