@@ -6,21 +6,22 @@ import { useApp } from "@/lib/store"
 import { ScreenHeader, Pill, PrimaryButton } from "@/components/app/ui"
 import { formatNaira, type OrderStatus } from "@/lib/data"
 import { cn } from "@/lib/utils"
+import { isTrackable } from "@/lib/order-status"
 
 const statusLabel: Record<OrderStatus, string> = {
-  preparing: "Preparing",
+  pending: "Pending",
+  confirmed: "Accepted",
   assigned: "Rider assigned",
-  picked_up: "Picked up",
-  on_the_way: "On the way",
+  picked_up: "On the way",
   delivered: "Delivered",
   cancelled: "Cancelled",
 }
 
 const statusStyle: Record<OrderStatus, string> = {
-  preparing: "bg-warning-soft text-warning-strong",
-  assigned: "bg-warning-soft text-warning-strong",
+  pending: "bg-warning-soft text-warning-strong",
+  confirmed: "bg-warning-soft text-warning-strong",
+  assigned: "bg-brand-soft text-brand",
   picked_up: "bg-brand-soft text-brand",
-  on_the_way: "bg-brand-soft text-brand",
   delivered: "bg-success-soft text-success",
   cancelled: "bg-secondary text-muted-foreground",
 }
@@ -32,7 +33,7 @@ export function OrdersScreen() {
   const [tab, setTab] = useState<Tab>("active")
 
   const active = orders.filter(
-    (o) => ["preparing", "assigned", "picked_up", "on_the_way"].includes(o.status),
+    (o) => isTrackable(o.status),
   )
   const completed = orders.filter(
     (o) => o.status === "delivered" || o.status === "cancelled",
@@ -72,7 +73,7 @@ export function OrdersScreen() {
               type="button"
               key={o.id}
               onClick={() =>
-              ["on_the_way", "preparing", "assigned", "picked_up"].includes(o.status)
+              isTrackable(o.status)
                 ? navigate("tracking", { orderCode: o.id, vendorId: o.vendorId ?? undefined })
                   : navigate("vendor", { vendorId: o.vendorId ?? undefined })
               }
@@ -101,7 +102,7 @@ export function OrdersScreen() {
                   </p>
                 </div>
                 <span className="inline-flex items-center gap-1 text-xs font-semibold text-brand">
-                  {["on_the_way", "preparing", "assigned", "picked_up"].includes(o.status)
+                  {isTrackable(o.status)
                     ? "Track order"
                     : "Reorder"}
                   <ChevronRight className="h-4 w-4" />

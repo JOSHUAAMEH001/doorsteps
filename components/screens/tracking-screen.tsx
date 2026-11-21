@@ -8,6 +8,7 @@ import { useApp } from "@/lib/store"
 import { LoadingState, ScreenHeader } from "@/components/app/ui"
 import type { OrderStatus } from "@/lib/order-status"
 import { cn } from "@/lib/utils"
+import { formatNaira } from "@/lib/data"
 
 const CustomerRiderMap = dynamic(() => import("@/components/screens/customer-rider-map"), {
   ssr: false,
@@ -120,6 +121,16 @@ function TrackingDetails({ order, onSupport }: { order: CustomerTracking; onSupp
           <div className="rounded-3xl border border-border bg-card p-4 text-sm shadow-sm">
             <p className="text-xs font-medium text-muted-foreground">Delivering to</p>
             <p className="mt-0.5 font-semibold text-foreground">{order.dropoffLocation}</p>
+          </div>
+        ) : null}
+
+        {order.items.length ? (
+          <div className="rounded-3xl border border-border bg-card p-4 text-sm shadow-sm">
+            <h2 className="text-xs font-medium text-muted-foreground">Order summary</h2>
+            <ul className="mt-1 space-y-0.5 text-foreground">
+              {order.items.map((item, i) => <li key={`${item.name}-${i}`}>{item.quantity}× {item.name}</li>)}
+            </ul>
+            {order.total != null ? <p className="mt-2 font-extrabold text-foreground">{formatNaira(order.total)}</p> : null}
           </div>
         ) : null}
 

@@ -26,6 +26,9 @@ export const RIDER_PREVIOUS: Record<"picked_up" | "delivered", OrderStatus> = {
 
 export const ACTIVE_DELIVERY: OrderStatus[] = ["assigned", "picked_up"]
 export const IN_PROGRESS: OrderStatus[] = ["confirmed", "assigned", "picked_up"]
+/** Orders a customer can open on the tracking screen (placed but not yet finished). */
+export const TRACKABLE: OrderStatus[] = ["pending", "confirmed", "assigned", "picked_up"]
+export const isTrackable = (status: string) => (TRACKABLE as string[]).includes(status)
 
 type Tone = "neutral" | "brand" | "info" | "warning" | "success" | "danger"
 

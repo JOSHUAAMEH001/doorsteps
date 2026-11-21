@@ -28,7 +28,9 @@ export interface OrderItem {
   price: number
 }
 
-export type OrderStatus = "preparing" | "assigned" | "picked_up" | "on_the_way" | "delivered" | "cancelled"
+// Single source of truth for order statuses (mirrors the orders.status check constraint).
+export type { OrderStatus } from "@/lib/order-status"
+import type { OrderStatus } from "@/lib/order-status"
 
 export interface Order {
   id: string
