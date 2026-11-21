@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { divIcon, type LatLngTuple } from "leaflet"
+import { divIcon, latLngBounds, type LatLngTuple } from "leaflet"
 import { MapContainer, Marker, TileLayer, useMap } from "react-leaflet"
 import useSWR from "swr"
 import { MapPin } from "lucide-react"
@@ -10,6 +10,8 @@ import { createClient } from "@/lib/supabase/client"
 interface CustomerRiderMapProps {
   riderId: string
   riderName: string
+  /** Customer's pinned drop-off point, when they shared one at checkout. */
+  dropoff?: { lat: number; lng: number } | null
 }
 
 interface RiderLocation {
@@ -47,19 +49,48 @@ const riderIcon = divIcon({
   iconAnchor: [21, 44],
 })
 
-function FollowRider({ position }: { position: LatLngTuple }) {
+const dropoffIcon = divIcon({
+  className: "",
+  html: '<span style="display:block;width:18px;height:18px;border-radius:9999px;background:#16a34a;border:3px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.35)" aria-hidden="true"></span>',
+  iconSize: [18, 18],
+  iconAnchor: [9, 9],
+})
+
+function FollowRider({ position, dropoff }: { position: LatLngTuple; dropoff: LatLngTuple | null }) {
   const map = useMap()
+  const [lat, lng] = position
+  const [dLat, dLng] = dropoff ?? [null, null]
   useEffect(() => {
-    map.flyTo(position, Math.max(map.getZoom(), 15), { animate: true, duration: 0.7 })
-  }, [map, position])
+    if (dLat !== null && dLng !== null) {
+      map.flyToBounds(latLngBounds([[lat, lng], [dLat, dLng]]), { padding: [40, 40], maxZoom: 16, duration: 0.7 })
+    } else {
+      map.flyTo([lat, lng], Math.max(map.getZoom(), 15), { animate: true, duration: 0.7 })
+    }
+  }, [map, lat, lng, dLat, dLng])
   return null
+}
+
+/** Straight-line distance in metres (haversine). Not a road route, so shown as "about". */
+function distanceMetres(a: LatLngTuple, b: LatLngTuple) {
+  const R = 6_371_000
+  const toRad = (d: number) => (d * Math.PI) / 180
+  const dLat = toRad(b[0] - a[0])
+  const dLng = toRad(b[1] - a[1])
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(a[0])) * Math.cos(toRad(b[0])) * Math.sin(dLng / 2) ** 2
+  return 2 * R * Math.asin(Math.sqrt(h))
+}
+
+function formatDistance(metres: number) {
+  if (metres < 100) return "under 100 m"
+  if (metres < 1_000) return `about ${Math.round(metres / 50) * 50} m`
+  return `about ${(metres / 1_000).toFixed(1)} km`
 }
 
 function formatLocationAge(seconds: number) {
   return `Updated ${seconds} ${seconds === 1 ? "second" : "seconds"} ago`
 }
 
-export default function CustomerRiderMap({ riderId, riderName }: CustomerRiderMapProps) {
+export default function CustomerRiderMap({ riderId, riderName, dropoff = null }: CustomerRiderMapProps) {
   const supabase = useMemo(() => createClient(), [])
   const [now, setNow] = useState(() => Date.now())
   const { data: location, error, mutate } = useSWR<RiderLocation | null>(
@@ -107,6 +138,8 @@ export default function CustomerRiderMap({ riderId, riderName }: CustomerRiderMa
   const secondsAgo = Number.isFinite(timestamp) ? Math.max(0, Math.floor((now - timestamp) / 1_000)) : null
   const isPaused = secondsAgo !== null && secondsAgo > 60
   const position: LatLngTuple | null = location ? [location.lat, location.lng] : null
+  const dropoffPoint = useMemo<LatLngTuple | null>(() => (dropoff ? [dropoff.lat, dropoff.lng] : null), [dropoff])
+  const distance = position && dropoffPoint ? formatDistance(distanceMetres(position, dropoffPoint)) : null
 
   return (
     <section aria-label="Track your rider" className="mx-5 mb-4 overflow-hidden rounded-3xl border border-border bg-card shadow-sm">
@@ -124,8 +157,9 @@ export default function CustomerRiderMap({ riderId, riderName }: CustomerRiderMa
               attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             />
-            <FollowRider position={position} />
+            <FollowRider position={position} dropoff={dropoffPoint} />
             <Marker position={position} icon={riderIcon} title={riderName} alt={`${riderName} location`} />
+            {dropoffPoint ? <Marker position={dropoffPoint} icon={dropoffIcon} title="Your drop-off point" alt="Your drop-off point" /> : null}
           </MapContainer>
         </div>
       ) : (
@@ -141,7 +175,7 @@ export default function CustomerRiderMap({ riderId, riderName }: CustomerRiderMa
         {location && secondsAgo !== null
           ? isPaused
             ? `Rider location paused · ${formatLocationAge(secondsAgo)}`
-            : formatLocationAge(secondsAgo)
+            : [distance ? `Rider is ${distance} from your drop-off point` : null, formatLocationAge(secondsAgo)].filter(Boolean).join(" · ")
           : "Location updates appear here as your rider shares them."}
       </p>
     </section>

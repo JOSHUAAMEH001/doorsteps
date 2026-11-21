@@ -1,14 +1,12 @@
 "use client"
 
-import { useEffect, useState } from "react"
 import dynamic from "next/dynamic"
-import Image from "next/image"
 import useSWR from "swr"
-import { Phone, MessageCircle, MapPin } from "lucide-react"
-import { getCustomerOrderForTracking } from "@/app/actions/tracking"
+import { Bike, CircleX, Headphones, MapPin, PackageCheck, RefreshCw } from "lucide-react"
+import { getCustomerOrderForTracking, type CustomerTracking } from "@/app/actions/tracking"
 import { useApp } from "@/lib/store"
-import { ScreenHeader, Rating } from "@/components/app/ui"
-import { orderStatusSteps } from "@/lib/data"
+import { LoadingState, ScreenHeader } from "@/components/app/ui"
+import type { OrderStatus } from "@/lib/order-status"
 import { cn } from "@/lib/utils"
 
 const CustomerRiderMap = dynamic(() => import("@/components/screens/customer-rider-map"), {
@@ -16,170 +14,162 @@ const CustomerRiderMap = dynamic(() => import("@/components/screens/customer-rid
   loading: () => <div role="status" className="mx-5 mb-4 flex h-[280px] items-center justify-center rounded-3xl border border-border bg-secondary text-sm text-muted-foreground sm:h-[320px]">Connecting to the live map…</div>,
 })
 
+/** Customer-facing timeline. Each step maps to a real `orders.status` value. */
+const STEPS: { status: Exclude<OrderStatus, "cancelled">; label: string; desc: string }[] = [
+  { status: "pending", label: "Order placed", desc: "Waiting for the vendor to accept" },
+  { status: "confirmed", label: "Order accepted", desc: "The vendor is preparing your order" },
+  { status: "assigned", label: "Rider assigned", desc: "Your rider is heading to the vendor" },
+  { status: "picked_up", label: "On the way", desc: "Your rider has your order and is coming to you" },
+  { status: "delivered", label: "Delivered", desc: "Enjoy your order" },
+]
+
+const HEADLINE: Record<OrderStatus, string> = {
+  pending: "Waiting for the vendor",
+  confirmed: "Being prepared",
+  assigned: "Rider heading to the vendor",
+  picked_up: "On the way to you",
+  delivered: "Delivered",
+  cancelled: "Order cancelled",
+}
+
+const isLive = (status: OrderStatus) => status === "assigned" || status === "picked_up"
+
 export function TrackingScreen() {
   const { navigate, params, orderId } = useApp()
-  const trackingOrderCode = params.orderCode ?? orderId ?? ""
-  const { data: trackingResult } = useSWR(
-    trackingOrderCode ? `customer-tracking:${trackingOrderCode}` : null,
-    () => getCustomerOrderForTracking(trackingOrderCode),
+  const orderCode = (params.orderCode ?? orderId ?? "").trim()
+  const { data: result, error, isLoading, mutate, isValidating } = useSWR(
+    orderCode ? ["customer-tracking", orderCode] : null,
+    () => getCustomerOrderForTracking(orderCode),
+    {
+      // Keep the status current until the order is finished.
+      refreshInterval: (latest) =>
+        latest?.data && (latest.data.status === "delivered" || latest.data.status === "cancelled") ? 0 : 15_000,
+      revalidateOnFocus: true,
+      keepPreviousData: true,
+    },
   )
-  const liveTracking = trackingResult?.data
-  const isRiderTrackingActive = Boolean(
-    liveTracking?.riderId && ["assigned", "picked_up"].includes(liveTracking.status),
-  )
-  const riderName = isRiderTrackingActive ? liveTracking?.riderName ?? "Your rider" : "Emeka Okafor"
-  // active step index across the confirmed -> preparing -> on_the_way -> delivered flow
-  const [step, setStep] = useState(1)
-  const [eta, setEta] = useState(15)
-
-  useEffect(() => {
-    const stepTimer = setInterval(() => {
-      setStep((s) => (s < orderStatusSteps.length - 1 ? s + 1 : s))
-    }, 4500)
-    const etaTimer = setInterval(() => {
-      setEta((e) => (e > 1 ? e - 1 : e))
-    }, 3000)
-    return () => {
-      clearInterval(stepTimer)
-      clearInterval(etaTimer)
-    }
-  }, [])
-
-  const delivered = step >= orderStatusSteps.length - 1
+  const order = result?.data ?? null
 
   return (
     <div className="flex min-h-full flex-col bg-background">
-      <ScreenHeader title="Track order" subtitle={`Order ${params.orderCode ?? ""}`} />
+      <ScreenHeader title="Track order" subtitle={orderCode ? `Order ${orderCode}` : undefined} />
 
-      {/* Map */}
-      {isRiderTrackingActive && liveTracking?.riderId ? (
-        <CustomerRiderMap riderId={liveTracking.riderId} riderName={riderName} />
+      {!orderCode ? (
+        <Message title="No order selected" body="Open an order from My orders to track it." action={{ label: "Go to my orders", onClick: () => navigate("orders") }} />
+      ) : isLoading && !result ? (
+        <LoadingState label="Loading your order…" />
+      ) : error || result?.error === "failed" ? (
+        <Message title="We couldn't load your order" body="Check your connection and try again." action={{ label: isValidating ? "Retrying…" : "Try again", onClick: () => void mutate() }} />
+      ) : result?.error === "signed_out" ? (
+        <Message title="Log in to track your order" body="Your session has ended. Log in again to see live updates." action={{ label: "Log in", onClick: () => navigate("auth") }} />
+      ) : !order ? (
+        <Message title="Order not found" body={`We couldn't find order ${orderCode} on your account.`} action={{ label: "Go to my orders", onClick: () => navigate("orders") }} />
       ) : (
-        <div className="relative h-56 w-full overflow-hidden">
-          <Image
-            src="/map-route.png"
-            alt="Delivery route map"
-            fill
-            className="object-cover"
-          />
-          <div className="absolute inset-0 bg-gradient-to-b from-transparent to-background/30" />
-          <div
-            className="absolute left-1/2 top-1/2 flex h-11 w-11 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-brand text-brand-foreground shadow-lg shadow-brand/40 transition-all duration-1000"
-            style={{
-              transform: `translate(calc(-50% + ${step * 8}px), calc(-50% - ${step * 10}px))`,
-            }}
-          >
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-brand/40" />
-            <MapPin className="relative h-5 w-5" />
-          </div>
+        <TrackingDetails order={order} onSupport={() => navigate("support")} />
+      )}
+    </div>
+  )
+}
+
+function TrackingDetails({ order, onSupport }: { order: CustomerTracking; onSupport: () => void }) {
+  const live = isLive(order.status) && order.riderId
+  const cancelled = order.status === "cancelled"
+  const currentIndex = STEPS.findIndex((s) => s.status === order.status)
+
+  return (
+    <>
+      {live ? (
+        <CustomerRiderMap riderId={order.riderId!} riderName={order.riderName} dropoff={order.dropoff} />
+      ) : (
+        <div className="mx-5 mb-4 flex h-40 flex-col items-center justify-center gap-2 rounded-3xl border border-border bg-secondary px-6 text-center">
+          {cancelled ? <CircleX aria-hidden="true" className="size-6 text-destructive" /> : order.status === "delivered" ? <PackageCheck aria-hidden="true" className="size-6 text-success" /> : <MapPin aria-hidden="true" className="size-6 text-muted-foreground" />}
+          <p className="text-sm font-semibold text-foreground">
+            {cancelled ? "This order was cancelled" : order.status === "delivered" ? "Your order has been delivered" : "The live map appears once a rider is assigned"}
+          </p>
         </div>
       )}
 
-      <div className="flex-1 space-y-4 p-5">
-        {/* ETA card */}
-        <div className="flex items-center justify-between rounded-3xl border border-border bg-card p-4 shadow-sm">
-          <div>
-            <p className="text-xs font-medium text-muted-foreground">
-              {delivered ? "Order status" : "Estimated arrival"}
-            </p>
-            <p className="text-2xl font-extrabold text-foreground">
-              {delivered ? "Delivered" : `${eta} mins`}
-            </p>
+      <div className="flex-1 space-y-4 px-5 pb-5">
+        <div className="flex items-center justify-between gap-3 rounded-3xl border border-border bg-card p-4 shadow-sm">
+          <div className="min-w-0">
+            <p className="text-xs font-medium text-muted-foreground">Order status</p>
+            <p role="status" aria-live="polite" className={cn("text-xl font-extrabold", cancelled ? "text-destructive" : "text-foreground")}>{HEADLINE[order.status]}</p>
+            {order.vendorName ? <p className="mt-0.5 truncate text-xs text-muted-foreground">From {order.vendorName}</p> : null}
           </div>
-          <div className="rounded-full bg-brand-soft px-4 py-2 text-xs font-bold text-brand">
-            {orderStatusSteps[step].label}
-          </div>
+          {!cancelled && order.status !== "delivered" ? (
+            <span className="flex shrink-0 items-center gap-1 rounded-full bg-brand-soft px-3 py-1.5 text-[11px] font-bold text-brand">
+              <RefreshCw aria-hidden="true" className="size-3" />Live
+            </span>
+          ) : null}
         </div>
 
-        {/* Rider card */}
-        <div className="rounded-3xl border border-border bg-card p-4 shadow-sm">
-          <div className="flex items-center gap-3">
-            <Image
-              src="/rider-avatar.png"
-              alt={`${riderName} profile`}
-              width={52}
-              height={52}
-              className="h-13 w-13 rounded-full object-cover"
-            />
+        {live ? (
+          <div className="flex items-center gap-3 rounded-3xl border border-border bg-card p-4 shadow-sm">
+            <span className="flex size-12 shrink-0 items-center justify-center rounded-full bg-brand-soft text-brand"><Bike aria-hidden="true" className="size-6" /></span>
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-bold text-foreground">{riderName}</p>
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <span>Your rider</span>
-                <span aria-hidden>•</span>
-                <Rating value={4.9} />
-              </div>
+              <p className="truncate text-sm font-bold text-foreground">{order.riderName}</p>
+              <p className="text-xs text-muted-foreground">DOORS rider</p>
             </div>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                aria-label="Message rider"
-                onClick={() => navigate("support")}
-                className="flex h-11 w-11 items-center justify-center rounded-full border border-border bg-background text-foreground transition-transform active:scale-90"
-              >
-                <MessageCircle className="h-5 w-5" />
-              </button>
-              <button
-                type="button"
-                aria-label="Call rider"
-                className="flex h-11 w-11 items-center justify-center rounded-full bg-brand text-brand-foreground transition-transform active:scale-90"
-              >
-                <Phone className="h-5 w-5" />
-              </button>
-            </div>
+            <button type="button" onClick={onSupport} className="flex min-h-11 shrink-0 items-center gap-2 rounded-full border border-border bg-background px-4 text-xs font-bold text-foreground transition-transform active:scale-95">
+              <Headphones aria-hidden="true" className="size-4" />Get help
+            </button>
           </div>
-          <div className="mt-3 rounded-2xl bg-secondary p-3 text-xs text-muted-foreground">
-            Riding a red Doorsteps bike • Plate ENU-482-KJA
-          </div>
-        </div>
+        ) : null}
 
-        {/* Timeline */}
-        <div className="rounded-3xl border border-border bg-card p-5 shadow-sm">
-          <h2 className="mb-4 text-sm font-bold text-foreground">Order progress</h2>
-          <ol className="space-y-0">
-            {orderStatusSteps.map((s, i) => {
-              const done = i < step
-              const active = i === step
-              const isLast = i === orderStatusSteps.length - 1
-              return (
-                <li key={s.key} className="flex gap-3">
-                  <div className="flex flex-col items-center">
-                    <span
-                      className={cn(
+        {order.dropoffLocation ? (
+          <div className="rounded-3xl border border-border bg-card p-4 text-sm shadow-sm">
+            <p className="text-xs font-medium text-muted-foreground">Delivering to</p>
+            <p className="mt-0.5 font-semibold text-foreground">{order.dropoffLocation}</p>
+          </div>
+        ) : null}
+
+        {cancelled ? (
+          <div className="rounded-3xl border border-destructive/15 bg-destructive/5 p-4 text-sm text-destructive">
+            This order was cancelled. If you were charged or think this is a mistake, contact support.
+            <button type="button" onClick={onSupport} className="mt-3 block font-bold underline underline-offset-2">Contact support</button>
+          </div>
+        ) : (
+          <div className="rounded-3xl border border-border bg-card p-5 shadow-sm">
+            <h2 className="mb-4 text-sm font-bold text-foreground">Order progress</h2>
+            <ol>
+              {STEPS.map((s, i) => {
+                const done = i < currentIndex || order.status === "delivered"
+                const active = i === currentIndex && order.status !== "delivered"
+                const isLast = i === STEPS.length - 1
+                return (
+                  <li key={s.status} className="flex gap-3" aria-current={active ? "step" : undefined}>
+                    <div className="flex flex-col items-center">
+                      <span className={cn(
                         "flex h-6 w-6 items-center justify-center rounded-full border-2 text-[10px] font-bold transition-colors",
                         done && "border-brand bg-brand text-brand-foreground",
                         active && "border-brand bg-brand-soft text-brand",
                         !done && !active && "border-border bg-background text-muted-foreground",
-                      )}
-                    >
-                      {done ? "✓" : i + 1}
-                    </span>
-                    {!isLast && (
-                      <span
-                        className={cn(
-                          "my-1 w-0.5 flex-1 rounded-full transition-colors",
-                          done ? "bg-brand" : "bg-border",
-                        )}
-                        style={{ minHeight: 28 }}
-                      />
-                    )}
-                  </div>
-                  <div className={cn("pb-4", isLast && "pb-0")}>
-                    <p
-                      className={cn(
-                        "text-sm font-semibold",
-                        active || done ? "text-foreground" : "text-muted-foreground",
-                      )}
-                    >
-                      {s.label}
-                    </p>
-                    <p className="text-xs text-muted-foreground">{s.desc}</p>
-                  </div>
-                </li>
-              )
-            })}
-          </ol>
-        </div>
+                      )}>
+                        {done ? "✓" : i + 1}
+                      </span>
+                      {!isLast && <span className={cn("my-1 w-0.5 flex-1 rounded-full", done ? "bg-brand" : "bg-border")} style={{ minHeight: 28 }} />}
+                    </div>
+                    <div className={cn("pb-4", isLast && "pb-0")}>
+                      <p className={cn("text-sm font-semibold", active || done ? "text-foreground" : "text-muted-foreground")}>{s.label}</p>
+                      <p className="text-xs text-muted-foreground">{s.desc}</p>
+                    </div>
+                  </li>
+                )
+              })}
+            </ol>
+          </div>
+        )}
       </div>
+    </>
+  )
+}
+
+function Message({ title, body, action }: { title: string; body: string; action: { label: string; onClick: () => void } }) {
+  return (
+    <div className="mx-5 mt-4 rounded-3xl border border-border bg-card p-6 text-center shadow-sm">
+      <p className="text-base font-bold text-foreground">{title}</p>
+      <p className="mt-1 text-sm text-muted-foreground">{body}</p>
+      <button type="button" onClick={action.onClick} className="mt-4 min-h-11 rounded-2xl bg-brand px-5 text-sm font-bold text-brand-foreground">{action.label}</button>
     </div>
   )
 }
