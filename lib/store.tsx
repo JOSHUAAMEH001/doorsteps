@@ -86,6 +86,18 @@ export interface CartLine {
 
 export type PaymentMethod = "cod" | "transfer" | "card"
 
+export interface DeliveryDetails {
+  address: string
+  /** Room / hostel / landmark, so the rider finds the exact spot. */
+  landmark: string
+  phone: string
+  instructions: string
+  time: string
+  /** Pinned drop-off point, only when the customer shared or placed one. */
+  dropoffLat: number | null
+  dropoffLng: number | null
+}
+
 /** Result of addToCart: "conflict" means the item is from another vendor and the user is being asked. */
 export type AddToCartResult = "added" | "conflict"
 
@@ -177,18 +189,8 @@ interface AppState {
 
   paymentMethod: PaymentMethod
   setPaymentMethod: (m: PaymentMethod) => void
-  deliveryDetails: {
-    address: string
-    phone: string
-    instructions: string
-    time: string
-  } | null
-  setDeliveryDetails: (details: {
-    address: string
-    phone: string
-    instructions: string
-    time: string
-  }) => void
+  deliveryDetails: DeliveryDetails | null
+  setDeliveryDetails: (details: DeliveryDetails) => void
 
   userName: string
   isGuest: boolean
