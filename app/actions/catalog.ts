@@ -29,12 +29,18 @@ export async function getVendors(category?: string) {
 
 export async function getMenuItem(id: string) {
   const supabase = await createClient()
-  const { data, error } = await supabase
+  const columns = 'id, vendor_id, name, description, price, image_url, is_available'
+  const withVideo = await supabase
     .from('menu_items')
-    .select('id, vendor_id, name, description, price, image_url, is_available')
+    .select(`${columns}, video_url`)
     .eq('id', id)
     .eq('is_available', true)
     .single()
+  // 42703 = video_url column not added yet; fall back so the product page still works.
+  const { data, error } = withVideo.error?.code === '42703'
+    ? await supabase.from('menu_items').select(columns).eq('id', id).eq('is_available', true).single()
+        .then((r) => ({ ...r, data: r.data ? { ...r.data, video_url: null as string | null } : null }))
+    : withVideo
   if (error) {
     console.error("[catalog] Failed to load menu item", error)
     throw new Error("Could not load. Please refresh.")
