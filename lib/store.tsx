@@ -4,7 +4,10 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
+  useLayoutEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react"
@@ -44,6 +47,37 @@ export interface NavParams {
   searchQuery?: string
 }
 
+/** Which main tab a screen belongs to, so the nav highlights the right one on sub-screens. */
+export function tabForScreen(screen: Screen): Screen {
+  switch (screen) {
+    case "vendors":
+    case "vendor":
+    case "product":
+      return "home"
+    case "delivery":
+    case "payment":
+      return "cart"
+    case "tracking":
+    case "success":
+    case "adminOrders":
+      return "orders"
+    case "support":
+    case "settings":
+      return "profile"
+    default:
+      return screen
+  }
+}
+
+/** Where someone lands after signing in (or reopening the app signed in). */
+export function landingScreen(role: Role | null | undefined, hasCartItems: boolean): Screen {
+  if (role === "vendor") return "vendorDashboard"
+  if (role === "rider") return "riderDashboard"
+  if (role === "admin") return "adminDashboard"
+  // A customer who was checking out goes back to their cart.
+  return hasCartItems ? "cart" : "home"
+}
+
 export interface CartLine {
   product: Product
   qty: number
@@ -52,10 +86,69 @@ export interface CartLine {
 
 export type PaymentMethod = "cod" | "transfer" | "card"
 
+/** Result of addToCart: "conflict" means the item is from another vendor and the user is being asked. */
+export type AddToCartResult = "added" | "conflict"
+
+interface PendingCartReplace {
+  product: Product
+  qty: number
+  note?: string
+  onAdded?: () => void
+}
+
+/** Screens that are never kept in the back stack (leaving them replaces the history entry). */
+const TRANSIENT_SCREENS = new Set<Screen>(["splash", "onboarding", "auth"])
+const CART_STORAGE_KEY = "doors-cart"
+
+/** What we store in window.history.state for each in-app screen. */
+type DoorsHistoryState = { doors: true; floor?: boolean; screen?: Screen; params?: NavParams; idx: number }
+
+function isDoorsState(value: unknown): value is DoorsHistoryState {
+  return Boolean(value && typeof value === "object" && (value as { doors?: unknown }).doors === true)
+}
+
+function sameParams(a: NavParams, b: NavParams) {
+  const keys = new Set([...Object.keys(a), ...Object.keys(b)]) as Set<keyof NavParams>
+  for (const key of keys) if (a[key] !== b[key]) return false
+  return true
+}
+
+function scrollToTop() {
+  if (typeof window === "undefined") return
+  window.scrollTo({ top: 0 })
+  document.getElementById("app-scroll")?.scrollTo({ top: 0 })
+}
+
+function readStoredCart(): CartLine[] {
+  try {
+    const raw = window.localStorage.getItem(CART_STORAGE_KEY)
+    if (!raw) return []
+    const parsed = JSON.parse(raw) as unknown
+    if (!Array.isArray(parsed)) return []
+    return parsed.filter((line): line is CartLine => {
+      const l = line as Partial<CartLine>
+      return Boolean(l && l.product && typeof l.product.id === "string" && typeof l.product.vendorId === "string"
+        && typeof l.product.price === "number" && Number.isInteger(l.qty) && (l.qty as number) > 0)
+    })
+  } catch {
+    return []
+  }
+}
+
+function writeStoredCart(cart: CartLine[]) {
+  try {
+    if (cart.length) window.localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(cart))
+    else window.localStorage.removeItem(CART_STORAGE_KEY)
+  } catch {
+    // Storage unavailable (private mode, blocked): the cart still works for this visit.
+  }
+}
+
 interface AppState {
   screen: Screen
   params: NavParams
-  navigate: (screen: Screen, params?: NavParams) => void
+  /** Pass { replace: true } to swap the current screen instead of adding a Back step. */
+  navigate: (screen: Screen, params?: NavParams, options?: { replace?: boolean }) => void
   back: () => void
   canGoBack: boolean
 
@@ -65,7 +158,12 @@ interface AppState {
   orders: Order[]
   ordersLoading: boolean
   cart: CartLine[]
-  addToCart: (product: Product, qty: number, note?: string) => void
+  /** Adds to the cart, or asks before replacing a cart from another vendor. onAdded runs once the item is in. */
+  addToCart: (product: Product, qty: number, note?: string, onAdded?: () => void) => AddToCartResult
+  pendingCartReplace: PendingCartReplace | null
+  confirmCartReplace: () => void
+  cancelCartReplace: () => void
+  cartVendorId: string | null
   updateQty: (productId: string, qty: number) => void
   removeFromCart: (productId: string) => void
   clearCart: () => void
@@ -96,6 +194,9 @@ interface AppState {
   isGuest: boolean
   role: Role | null
   isAdmin: boolean
+  /** True once we know whether someone is signed in (profile request finished). */
+  authChecked: boolean
+  isSignedIn: boolean
   signIn: (name: string, guest?: boolean) => void
 }
 
@@ -104,8 +205,9 @@ const AppContext = createContext<AppState | null>(null)
 export function AppProvider({ children, initialScreen = "splash", initialVendors = [] }: { children: ReactNode; initialScreen?: Screen; initialVendors?: Awaited<ReturnType<typeof getVendors>> }) {
   const [screen, setScreen] = useState<Screen>(initialScreen)
   const [params, setParams] = useState<NavParams>({})
-  const [history, setHistory] = useState<{ screen: Screen; params: NavParams }[]>([])
+  const [historyIndex, setHistoryIndex] = useState(0)
   const [cart, setCart] = useState<CartLine[]>([])
+  const [pendingCartReplace, setPendingCartReplace] = useState<PendingCartReplace | null>(null)
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cod")
   const [deliveryDetails, setDeliveryDetails] = useState<AppState["deliveryDetails"]>(null)
   const [orderId, setOrderId] = useState<string | null>(null)
@@ -116,8 +218,10 @@ export function AppProvider({ children, initialScreen = "splash", initialVendors
     revalidateOnMount: initialVendors.length === 0,
   })
   const { data: orderRows = [], isLoading: ordersLoading } = useSWR("my-orders", getMyOrders)
-  const { data: profileResult } = useSWR("current-profile", getCurrentProfile)
+  const { data: profileResult, isLoading: profileLoading } = useSWR("current-profile", getCurrentProfile)
   const role = profileResult?.data?.role ?? null
+  const isSignedIn = Boolean(profileResult?.data)
+  const authChecked = !profileLoading
   const profile = profileResult?.data
   const profileName = profile?.full_name?.trim() || profile?.email?.split("@")[0]?.trim()
   const displayName = profile ? profileName || "Customer" : userName
@@ -148,45 +252,188 @@ export function AppProvider({ children, initialScreen = "splash", initialVendors
     [orderRows],
   )
 
-  const canGoBack = history.length > 0
+  // Latest values for the history listeners, which are registered once.
+  const screenRef = useRef(screen)
+  const paramsRef = useRef(params)
+  const indexRef = useRef(0)
+  const cartRef = useRef(cart)
+  const signedInRef = useRef(isSignedIn)
+  const deliveryRef = useRef(deliveryDetails)
+  useLayoutEffect(() => {
+    screenRef.current = screen
+    paramsRef.current = params
+    cartRef.current = cart
+    signedInRef.current = isSignedIn
+    deliveryRef.current = deliveryDetails
+  }, [screen, params, cart, isSignedIn, deliveryDetails])
 
+  const show = useCallback((next: Screen, nextParams: NavParams, index: number) => {
+    screenRef.current = next
+    paramsRef.current = nextParams
+    indexRef.current = index
+    setScreen(next)
+    setParams(nextParams)
+    setHistoryIndex(index)
+    scrollToTop()
+  }, [])
+
+  /**
+   * In-app navigation is mirrored into the browser history so the browser/phone Back button
+   * moves between screens instead of leaving the app. The URL stays on the current path
+   * (query and hash dropped, so a reload never reopens the login screen by accident).
+   */
   const navigate = useCallback(
-    (next: Screen, nextParams: NavParams = {}) => {
-      setHistory((h) => [...h, { screen, params }])
-      setScreen(next)
-      setParams(nextParams)
-      if (typeof window !== "undefined") {
-        window.scrollTo({ top: 0 })
-        const el = document.getElementById("app-scroll")
-        if (el) el.scrollTo({ top: 0 })
+    (next: Screen, nextParams: NavParams = {}, options?: { replace?: boolean }) => {
+      if (next === screenRef.current && sameParams(nextParams, paramsRef.current)) {
+        scrollToTop()
+        return
       }
+      // Splash, onboarding and login are never kept as a Back step.
+      const replace = Boolean(options?.replace) || TRANSIENT_SCREENS.has(screenRef.current)
+      const index = replace ? indexRef.current : indexRef.current + 1
+      if (typeof window !== "undefined") {
+        const state: DoorsHistoryState = { doors: true, screen: next, params: nextParams, idx: index }
+        try {
+          if (replace) window.history.replaceState(state, "", window.location.pathname)
+          else window.history.pushState(state, "", window.location.pathname)
+        } catch {
+          // History API unavailable: in-app navigation still works.
+        }
+      }
+      show(next, nextParams, index)
     },
-    [screen, params],
+    [show],
   )
 
+  // Register the first screen and listen for the browser Back/Forward buttons.
+  useEffect(() => {
+    const url = new URL(window.location.href)
+    const hash = new URLSearchParams(url.hash.replace(/^#/, ""))
+    // Auth email links on "/" are forwarded elsewhere by AppShell; don't touch their URL.
+    const isAuthLink = url.searchParams.has("code") || hash.has("access_token") || url.searchParams.has("error_code") || hash.has("error_code")
+    // Deferred one tick: Next.js wires up its own history handling after this effect runs, and
+    // entries created before that make Next reload the page when Back reaches them.
+    const setupTimer = window.setTimeout(() => {
+      if (isAuthLink) return
+      try {
+        const first: DoorsHistoryState = { doors: true, screen: screenRef.current, params: paramsRef.current, idx: 0 }
+        const existing: unknown = window.history.state
+        if (isDoorsState(existing) && !existing.floor && existing.idx >= 0) {
+          // Reload: keep the existing stack, start again from the first screen.
+          window.history.replaceState({ ...first, idx: existing.idx }, "", url.pathname)
+          indexRef.current = existing.idx
+          setHistoryIndex(indexRef.current)
+        } else {
+          // A "floor" entry under the app, so Back from the first screen stays in the app.
+          window.history.replaceState({ doors: true, floor: true, idx: -1 } satisfies DoorsHistoryState, "", url.pathname)
+          window.history.pushState(first, "", url.pathname)
+        }
+      } catch {
+        // History API unavailable.
+      }
+    }, 0)
+
+    function onPopState(event: PopStateEvent) {
+      const state = event.state
+      if (!isDoorsState(state)) return
+      const signedIn = signedInRef.current
+      if (state.floor || !state.screen) {
+        // Nothing earlier in the app. Signed-out visitors on the intro/login screens may leave;
+        // everyone else stays on (or goes to) home.
+        if (!signedIn && TRANSIENT_SCREENS.has(screenRef.current)) {
+          window.history.back()
+          return
+        }
+        const home: DoorsHistoryState = { doors: true, screen: "home", params: {}, idx: 0 }
+        window.history.pushState(home, "", window.location.pathname)
+        show("home", {}, 0)
+        return
+      }
+      let target = state.screen
+      let targetParams = state.params ?? {}
+      // A signed-in user never goes Back to the splash/intro/login screens.
+      if (signedIn && TRANSIENT_SCREENS.has(target)) target = "home"
+      // Checkout steps only make sense with something in the cart.
+      if ((target === "delivery" || target === "payment") && cartRef.current.length === 0) target = "home"
+      else if (target === "payment" && !deliveryRef.current) target = "delivery"
+      if (target !== state.screen) {
+        targetParams = {}
+        window.history.replaceState({ doors: true, screen: target, params: targetParams, idx: state.idx } satisfies DoorsHistoryState, "", window.location.pathname)
+      }
+      show(target, targetParams, state.idx)
+    }
+
+    window.addEventListener("popstate", onPopState)
+    return () => {
+      window.clearTimeout(setupTimer)
+      window.removeEventListener("popstate", onPopState)
+    }
+  }, [show])
+
+  const canGoBack = historyIndex > 0 || screen !== "home"
+
+  /** In-app Back: same as the browser Back button. With no earlier screen, go (or stay) home. */
   const back = useCallback(() => {
-    setHistory((h) => {
-      if (h.length === 0) return h
-      const prev = h[h.length - 1]
-      setScreen(prev.screen)
-      setParams(prev.params)
-      return h.slice(0, -1)
-    })
+    if (indexRef.current > 0) {
+      window.history.back()
+    } else if (screenRef.current !== "home") {
+      navigate("home", {}, { replace: true })
+    }
+  }, [navigate])
+
+  // Restore the cart saved on this device, then keep it saved.
+  const cartLoaded = useRef(false)
+  useEffect(() => {
+    // localStorage only exists in the browser, so the saved cart is restored after the first
+    // render (restoring it during render would not match the server-rendered HTML).
+    const saved = readStoredCart()
+    cartLoaded.current = true
+    if (saved.length) {
+      cartRef.current = saved
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time sync from browser storage
+      setCart(saved)
+    }
+  }, [])
+  useEffect(() => {
+    if (cartLoaded.current) writeStoredCart(cart)
+  }, [cart])
+
+  const cartVendorId = cart[0]?.product.vendorId ?? null
+
+  const addToCart = useCallback((product: Product, qty: number, note?: string, onAdded?: () => void): AddToCartResult => {
+    const current = cartRef.current
+    // One order goes to one vendor: ask before replacing a cart from another vendor.
+    if (current.length > 0 && current[0].product.vendorId !== product.vendorId) {
+      setPendingCartReplace({ product, qty, note, onAdded })
+      return "conflict"
+    }
+    const existing = current.find((l) => l.product.id === product.id)
+    const nextCart = existing
+      ? current.map((l) => (l.product.id === product.id ? { ...l, qty: l.qty + qty, note: note ?? l.note } : l))
+      : [...current, { product, qty, note }]
+    cartRef.current = nextCart
+    setCart(nextCart)
+    onAdded?.()
+    return "added"
   }, [])
 
-  const addToCart = useCallback((product: Product, qty: number, note?: string) => {
-    setCart((c) => {
-      const existing = c.find((l) => l.product.id === product.id)
-      if (existing) {
-        return c.map((l) =>
-          l.product.id === product.id
-            ? { ...l, qty: l.qty + qty, note: note ?? l.note }
-            : l,
-        )
-      }
-      return [...c, { product, qty, note }]
-    })
+  const pendingRef = useRef(pendingCartReplace)
+  useLayoutEffect(() => {
+    pendingRef.current = pendingCartReplace
+  }, [pendingCartReplace])
+
+  const confirmCartReplace = useCallback(() => {
+    const pending = pendingRef.current
+    pendingRef.current = null
+    setPendingCartReplace(null)
+    if (!pending) return
+    const nextCart = [{ product: pending.product, qty: pending.qty, note: pending.note }]
+    cartRef.current = nextCart
+    setCart(nextCart)
+    pending.onAdded?.()
   }, [])
+
+  const cancelCartReplace = useCallback(() => setPendingCartReplace(null), [])
 
   const updateQty = useCallback((productId: string, qty: number) => {
     setCart((c) =>
@@ -200,7 +447,10 @@ export function AppProvider({ children, initialScreen = "splash", initialVendors
     setCart((c) => c.filter((l) => l.product.id !== productId))
   }, [])
 
-  const clearCart = useCallback(() => setCart([]), [])
+  const clearCart = useCallback(() => {
+    cartRef.current = []
+    setCart([])
+  }, [])
 
   const placeOrder = useCallback((orderCode: string) => {
     setOrderId(orderCode)
@@ -236,6 +486,10 @@ export function AppProvider({ children, initialScreen = "splash", initialVendors
     ordersLoading,
     cart,
     addToCart,
+    pendingCartReplace,
+    confirmCartReplace,
+    cancelCartReplace,
+    cartVendorId,
     updateQty,
     removeFromCart,
     clearCart,
@@ -253,6 +507,8 @@ export function AppProvider({ children, initialScreen = "splash", initialVendors
     isGuest,
     role,
     isAdmin: role === "admin",
+    authChecked,
+    isSignedIn,
     signIn,
   }
 

@@ -1,6 +1,6 @@
 "use client"
 
-import { ArrowLeft, Bike, Clock, Heart, Plus, Star } from "lucide-react"
+import { ArrowLeft, Bike, Clock, Heart, Minus, Plus, Star } from "lucide-react"
 import { CatalogImage } from "@/components/app/catalog-image"
 import { useMemo, useState } from "react"
 import useSWR from "swr"
@@ -8,9 +8,11 @@ import { getMenuItems } from "@/app/actions/catalog"
 import { formatNaira, type Product } from "@/lib/data"
 import { useApp } from "@/lib/store"
 import { cn } from "@/lib/utils"
+import { PrimaryButton, ScreenHeader } from "@/components/app/ui"
 
 export function VendorScreen() {
-  const { params, back, navigate, addToCart, vendors } = useApp()
+  const { params, back, navigate, addToCart, updateQty, cart, vendors, vendorsLoading } = useApp()
+  const qtyInCart = useMemo(() => new Map(cart.map((line) => [line.product.id, line.qty])), [cart])
   const vendor = vendors.find((v) => v.id === params.vendorId)
   const { data: menuRows = [], isLoading, error: menuError } = useSWR(
     vendor ? ["menu-items", vendor.id] : null,
@@ -39,7 +41,21 @@ export function VendorScreen() {
 
   const [activeGroup, setActiveGroup] = useState(groups[0]?.[0] ?? "")
 
-  if (!vendor) return <div className="p-6 text-sm text-muted-foreground">Vendor not found.</div>
+  if (!vendor) {
+    return (
+      <div className="flex min-h-full flex-col">
+        <ScreenHeader title="Restaurant" />
+        {vendorsLoading ? (
+          <p role="status" className="p-6 text-sm text-muted-foreground">Loading restaurant…</p>
+        ) : (
+          <div className="flex flex-1 flex-col items-center justify-center gap-4 px-8 text-center">
+            <p className="text-sm font-semibold text-foreground">This restaurant isn&apos;t available right now.</p>
+            <div className="w-full max-w-[220px]"><PrimaryButton onClick={() => navigate("home")}>Browse restaurants</PrimaryButton></div>
+          </div>
+        )}
+      </div>
+    )
+  }
 
   return (
     <div className="pb-8">
@@ -166,14 +182,12 @@ export function VendorScreen() {
                   </button>
                   <div className="relative h-24 w-24 shrink-0">
                     <CatalogImage name={p.name} imageUrl={p.image} sizes="96px" priority={index === 0} className="rounded-2xl object-cover" fallbackClassName="text-[10px] leading-tight" />
-                    <button
-                      type="button"
-                      onClick={() => addToCart(p, 1)}
-                      className="absolute -bottom-2 -right-2 flex h-8 w-8 items-center justify-center rounded-full bg-brand text-brand-foreground shadow-md active:scale-90"
-                      aria-label={`Add ${p.name} to cart`}
-                    >
-                      <Plus className="h-4 w-4" strokeWidth={2.6} />
-                    </button>
+                    <QuantityControl
+                      name={p.name}
+                      qty={qtyInCart.get(p.id) ?? 0}
+                      onAdd={() => addToCart(p, 1)}
+                      onRemove={() => updateQty(p.id, (qtyInCart.get(p.id) ?? 0) - 1)}
+                    />
                   </div>
                 </div>
               ))}
@@ -181,6 +195,33 @@ export function VendorScreen() {
           </section>
         ))}
       </div>
+    </div>
+  )
+}
+
+/** "+" adds one plate; once in the cart it becomes  − 2 +  so taps show the running count. */
+function QuantityControl({ name, qty, onAdd, onRemove }: { name: string; qty: number; onAdd: () => void; onRemove: () => void }) {
+  if (qty <= 0) {
+    return (
+      <button
+        type="button"
+        onClick={onAdd}
+        className="absolute -bottom-2 -right-2 flex h-9 w-9 items-center justify-center rounded-full bg-brand text-brand-foreground shadow-md active:scale-90"
+        aria-label={`Add ${name} to cart`}
+      >
+        <Plus className="h-4 w-4" strokeWidth={2.6} />
+      </button>
+    )
+  }
+  return (
+    <div className="absolute -bottom-2 -right-2 flex h-9 items-center rounded-full bg-brand text-brand-foreground shadow-md">
+      <button type="button" onClick={onRemove} aria-label={`Remove one ${name}`} className="flex h-9 w-9 items-center justify-center rounded-full active:scale-90">
+        <Minus className="h-4 w-4" strokeWidth={2.6} />
+      </button>
+      <span aria-live="polite" aria-label={`${qty} in cart`} className="min-w-5 text-center text-sm font-extrabold tabular-nums">{qty}</span>
+      <button type="button" onClick={onAdd} aria-label={`Add another ${name}`} className="flex h-9 w-9 items-center justify-center rounded-full active:scale-90">
+        <Plus className="h-4 w-4" strokeWidth={2.6} />
+      </button>
     </div>
   )
 }

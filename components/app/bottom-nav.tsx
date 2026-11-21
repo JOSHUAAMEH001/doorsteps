@@ -1,7 +1,7 @@
 "use client"
 
 import { Bell, Home, Receipt, ShoppingCart, User } from "lucide-react"
-import { useApp, type Screen } from "@/lib/store"
+import { tabForScreen, useApp, type Screen } from "@/lib/store"
 import { cn } from "@/lib/utils"
 
 const items: { screen: Screen; label: string; icon: typeof Home }[] = [
@@ -18,7 +18,7 @@ export function BottomNav() {
     <nav className="sticky bottom-0 z-30 border-t border-border bg-background/95 px-2 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden">
       <div className="flex items-stretch justify-between">
         {items.map((item) => {
-          const active = screen === item.screen
+          const active = tabForScreen(screen) === item.screen
           const Icon = item.icon
           return (
             <button

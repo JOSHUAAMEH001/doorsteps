@@ -7,6 +7,7 @@ import useSWR from "swr"
 import { getMenuItem } from "@/app/actions/catalog"
 import { formatNaira, type Product } from "@/lib/data"
 import { useApp } from "@/lib/store"
+import { ScreenHeader } from "@/components/app/ui"
 
 export function ProductScreen() {
   const { params, back, navigate, addToCart } = useApp()
@@ -27,7 +28,7 @@ export function ProductScreen() {
   const [qty, setQty] = useState(1)
   const [note, setNote] = useState("")
 
-  if (error) return <div role="alert" className="p-6 text-sm text-muted-foreground">Could not load. Please refresh.</div>
+  if (error) return <div className="flex min-h-full flex-col"><ScreenHeader title="Menu item" /><p role="alert" className="p-6 text-sm text-muted-foreground">We couldn&apos;t load this item. Check your connection and try again.</p></div>
   if (isLoading) return (
     <div role="status" aria-label="Loading menu item" className="flex min-h-full flex-col">
       <div aria-hidden="true" className="h-72 w-full bg-secondary" />
@@ -38,7 +39,7 @@ export function ProductScreen() {
       </div>
     </div>
   )
-  if (!product) return <div className="p-6 text-sm text-muted-foreground">Menu item not found.</div>
+  if (!product) return <div className="flex min-h-full flex-col"><ScreenHeader title="Menu item" /><p className="p-6 text-sm text-muted-foreground">This menu item isn&apos;t available anymore.</p></div>
 
   const total = product.price * qty
 
@@ -134,8 +135,8 @@ export function ProductScreen() {
         <button
           type="button"
           onClick={() => {
-            addToCart(product, qty, note || undefined)
-            navigate("cart")
+            // Opens the cart once the item is in (after "Start a new cart?" if needed).
+            addToCart(product, qty, note || undefined, () => navigate("cart"))
           }}
           className="flex w-full items-center justify-between rounded-2xl bg-brand px-5 py-4 text-sm font-bold text-brand-foreground transition-transform active:scale-[0.98]"
         >
