@@ -33,6 +33,7 @@
 @theme inline {
   --font-sans: 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif;
   --font-mono: ui-monospace, monospace;
+  --font-display: var(--font-bricolage), 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif;
 
   --color-ring: var(--ring);
   --color-input: var(--input);
@@ -167,3 +168,20 @@
 @media (prefers-reduced-motion: reduce) {
   .doors-fade-in, .doors-slide-in { animation: none; }
 }
+
+/* Landing page (/join) micro-animations. GSAP handles the rest. */
+@keyframes landing-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes landing-rise {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes landing-progress {
+  from { width: 0%; }
+  to { width: 100%; }
+}
+/* "Pause animations" on /join also stops the small CSS loops (pulsing dots). */
+[data-motion="paused"] .animate-ping,
+[data-motion="paused"] .animate-pulse { animation: none; }

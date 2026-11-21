@@ -1,7 +1,6 @@
 -- =============================================================================
 -- Vendor menu photos & videos (uploaded files, not links)
--- STATUS: NOT APPLIED YET. Apply before vendors can upload photos/videos.
--- (The app keeps working without it: uploads just show an error.)
+-- STATUS: APPLIED to production on 2026-11-21 as "vendor_menu_media".
 --
 -- * menu_items.video_url: optional short product video.
 -- * Bucket "menu-images" (already public, used by admins) now accepts only
