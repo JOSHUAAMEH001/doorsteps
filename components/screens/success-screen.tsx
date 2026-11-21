@@ -5,7 +5,7 @@ import { PrimaryButton } from "@/components/app/ui"
 import { useApp } from "@/lib/store"
 
 export function SuccessScreen() {
-  const { navigate, params } = useApp()
+  const { navigate, params, deliveryDetails } = useApp()
 
   return (
     <div className="flex h-full flex-col items-center justify-center px-8 text-center">
@@ -26,22 +26,24 @@ export function SuccessScreen() {
         the vendor. We&apos;ll notify you as it&apos;s prepared and dispatched.
       </p>
 
-      <div className="mt-6 w-full max-w-xs rounded-3xl bg-secondary p-4 text-left">
-        <div className="flex items-center justify-between text-sm">
-          <span className="text-muted-foreground">Estimated arrival</span>
-          <span className="font-bold text-foreground">20 - 30 min</span>
+      <div className="mt-6 w-full max-w-xs space-y-2 rounded-3xl bg-secondary p-4 text-left text-sm">
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-muted-foreground">Status</span>
+          <span className="font-bold text-foreground">Waiting for the vendor</span>
         </div>
-        <div className="mt-2 flex items-center justify-between text-sm">
-          <span className="text-muted-foreground">Delivery to</span>
-          <span className="font-bold text-foreground">ESUT Hostel B</span>
-        </div>
+        {deliveryDetails?.address ? (
+          <div className="flex items-start justify-between gap-3">
+            <span className="shrink-0 text-muted-foreground">Delivery to</span>
+            <span className="text-right font-bold text-foreground">{deliveryDetails.address}</span>
+          </div>
+        ) : null}
       </div>
 
       <div className="mt-8 w-full max-w-xs space-y-3">
         <PrimaryButton onClick={() => navigate("tracking", { orderCode: params.orderCode, vendorId: params.vendorId })}>
           Track your order
         </PrimaryButton>
-        <PrimaryButton variant="outline" onClick={() => navigate("home")}>
+        <PrimaryButton variant="outline" onClick={() => navigate("home", {}, { replace: true })}>
           Back to home
         </PrimaryButton>
       </div>

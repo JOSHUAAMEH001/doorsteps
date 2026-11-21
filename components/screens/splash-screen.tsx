@@ -1,16 +1,23 @@
 "use client"
 
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import { BrandLogo } from "@/components/brand/logo"
-import { useApp } from "@/lib/store"
+import { landingScreen, useApp } from "@/lib/store"
 
 export function SplashScreen() {
-  const { navigate } = useApp()
+  const { navigate, authChecked, isSignedIn, role, cart } = useApp()
+  const [timeUp, setTimeUp] = useState(false)
 
   useEffect(() => {
-    const t = setTimeout(() => navigate("onboarding"), 2400)
+    const t = setTimeout(() => setTimeUp(true), 2400)
     return () => clearTimeout(t)
-  }, [navigate])
+  }, [])
+
+  // Signed-in people go straight into the app; first-time visitors see the intro.
+  useEffect(() => {
+    if (!timeUp || !authChecked) return
+    navigate(isSignedIn ? landingScreen(role, cart.length > 0) : "onboarding")
+  }, [timeUp, authChecked, isSignedIn, role, cart.length, navigate])
 
   return (
     <div className="relative flex h-full flex-col items-center justify-center bg-brand px-8 text-center">

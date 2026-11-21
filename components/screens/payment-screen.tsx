@@ -1,6 +1,6 @@
 "use client"
 
-import { Banknote, Building2, Check, CreditCard } from "lucide-react"
+import { Banknote, Building2, Check, CreditCard, LoaderCircle } from "lucide-react"
 import { useState } from "react"
 import { submitCheckout } from "@/app/actions/order"
 import { ScreenHeader, PrimaryButton } from "@/components/app/ui"
@@ -38,6 +38,7 @@ export function PaymentScreen() {
   const [expiry, setExpiry] = useState("")
   const [cvv, setCvv] = useState("")
   const [error, setError] = useState("")
+  const [submitting, setSubmitting] = useState(false)
 
   const total = cartSubtotal + deliveryFee + serviceFee
 
@@ -153,9 +154,11 @@ export function PaymentScreen() {
       </div>
 
       <div className="border-t border-border bg-background px-5 py-4">
-        {error ? <p className="mb-3 rounded-xl bg-destructive/10 px-3 py-2 text-xs font-medium text-destructive">{error}</p> : null}
+        {error ? <p role="alert" aria-live="assertive" className="mb-3 rounded-xl bg-destructive/10 px-3 py-2 text-xs font-medium text-destructive">{error}</p> : null}
         <PrimaryButton
+          disabled={submitting}
           onClick={async () => {
+            if (submitting) return
             if (!deliveryDetails) {
               setError("Please add your delivery details before paying.")
               return
@@ -175,40 +178,52 @@ export function PaymentScreen() {
               return
             }
             if (cart.some((line) => line.product.vendorId !== vendorId)) {
-              setError("Please place separate orders for items from different vendors.")
+              setError("Your cart has items from more than one restaurant. Go back to your cart and keep items from one restaurant only.")
               return
             }
             setError("")
-            const result = await submitCheckout({
-              customerName: userName,
-              phone: deliveryDetails.phone,
-              pickupLocation: vendor.name,
-              dropoffLocation: deliveryDetails.address,
-              itemDescription: cart.map((line) => `${line.qty}x ${line.product.name}`).join(", "),
-              vendorId,
-              subtotal: cartSubtotal,
-              deliveryFee,
-              total,
-              paymentMethod: paymentMethod === "cod" ? "cash" : paymentMethod,
-              items: cart.map((line) => ({
-                menuItemId: line.product.id,
-                itemName: line.product.name,
-                unitPrice: line.product.price,
-                quantity: line.qty,
-              })),
-            })
+            setSubmitting(true)
+            let result: Awaited<ReturnType<typeof submitCheckout>>
+            try {
+              result = await submitCheckout({
+                customerName: userName,
+                phone: deliveryDetails.phone,
+                pickupLocation: vendor.name,
+                dropoffLocation: deliveryDetails.address,
+                itemDescription: cart.map((line) => `${line.qty}x ${line.product.name}`).join(", "),
+                vendorId,
+                subtotal: cartSubtotal,
+                deliveryFee,
+                total,
+                paymentMethod: paymentMethod === "cod" ? "cash" : paymentMethod,
+                items: cart.map((line) => ({
+                  menuItemId: line.product.id,
+                  itemName: line.product.name,
+                  unitPrice: line.product.price,
+                  quantity: line.qty,
+                })),
+              })
+            } catch {
+              setSubmitting(false)
+              setError("We couldn't place your order. Check your internet connection and try again. Your cart has been kept.")
+              return
+            }
             if (!result.ok) {
-              setError(result.message)
+              setSubmitting(false)
+              setError(result.message || "We couldn't place your order. Please try again. Your cart has been kept.")
               return
             }
             placeOrder(result.orderCode)
             clearCart()
-            navigate("success", { orderCode: result.orderCode, vendorId })
+            // Replace the payment step, so Back from the confirmation can't resubmit the order.
+            navigate("success", { orderCode: result.orderCode, vendorId }, { replace: true })
           }}
         >
-          {paymentMethod === "cod"
-            ? `Place order • ${formatNaira(total)}`
-            : `Pay ${formatNaira(total)}`}
+          {submitting
+            ? <><LoaderCircle aria-hidden="true" className="h-4 w-4 animate-spin" />Placing your order…</>
+            : paymentMethod === "cod"
+              ? `Place order • ${formatNaira(total)}`
+              : `Pay ${formatNaira(total)}`}
         </PrimaryButton>
       </div>
     </div>

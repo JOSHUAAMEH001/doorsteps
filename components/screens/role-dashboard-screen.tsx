@@ -9,6 +9,7 @@ import { LoadingState, ScreenHeader } from "@/components/app/ui"
 import { AdminDashboard } from "@/components/dashboard/admin-dashboard"
 import { VendorDashboard } from "@/components/dashboard/vendor-dashboard"
 import { RiderDashboard } from "@/components/dashboard/rider-dashboard"
+import { OrdersScreen } from "@/components/screens/orders-screen"
 import { cn } from "@/lib/utils"
 import { isTrackable } from "@/lib/order-status"
 
@@ -95,6 +96,8 @@ export function RoleDashboardScreen({ role }: { role: Role }) {
   const { data, isLoading } = useSWR("current-profile", getCurrentProfile)
   if (isLoading) return <LoadingState label="Loading your dashboard..." className="min-h-48 w-full" />
   const adminPreview = data?.data?.role === "admin" && (role === "vendor" || role === "rider")
+  // The Orders tab is for everyone: guests, vendors, riders and admins see their own orders list.
+  if (role === "customer" && data?.data?.role !== "customer") return <OrdersScreen />
   if (!data?.data || (data.data.role !== role && !adminPreview)) return <p className="p-6 text-sm text-muted-foreground">You don&apos;t have access to this section.</p>
   if (role === "vendor") return <VendorDashboard preview={adminPreview} />
   if (role === "rider") return <RiderDashboard preview={adminPreview} />

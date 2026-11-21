@@ -5,7 +5,7 @@ import { Eye, EyeOff, LoaderCircle } from "lucide-react"
 import { mutate } from "swr"
 import { Logo } from "@/components/brand/logo"
 import { PrimaryButton } from "@/components/app/ui"
-import { useApp } from "@/lib/store"
+import { landingScreen, useApp } from "@/lib/store"
 import { createClient } from "@/lib/supabase/client"
 import { getCurrentProfile } from "@/app/actions/roles"
 
@@ -28,7 +28,7 @@ function authErrorMessage(error: unknown, mode: "login" | "signup") {
 }
 
 export function AuthScreen() {
-  const { navigate, signIn } = useApp()
+  const { navigate, signIn, cart } = useApp()
   const [mode, setMode] = useState<"login" | "signup">("login")
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
@@ -80,10 +80,9 @@ export function AuthScreen() {
       signIn(email.split("@")[0] || "Customer")
       const profile = await getCurrentProfile()
       await mutate("current-profile", profile, { revalidate: false })
-      if (profile.data?.role === "vendor") navigate("vendorDashboard")
-      else if (profile.data?.role === "rider") navigate("riderDashboard")
-      else if (profile.data?.role === "admin") navigate("adminDashboard")
-      else navigate("orders")
+      const landing = landingScreen(profile.data?.role, cart.length > 0)
+      // Customers without a cart keep landing on their orders, as before.
+      navigate(landing === "home" ? "orders" : landing)
     } catch {
       setMessageType("error")
       setMessage(mode === "login"
