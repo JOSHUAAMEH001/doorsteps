@@ -1,19 +1,23 @@
 import { NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
 
-/** Finishes email links that use ?code= (e.g. sign-up confirmation). */
 export async function GET(request: Request) {
   const url = new URL(request.url)
   const code = url.searchParams.get("code")
-  const rawNext = url.searchParams.get("next") ?? "/"
-  // Only allow same-site paths, so the link can't be abused to redirect elsewhere.
-  const next = rawNext.startsWith("/") && !rawNext.startsWith("//") ? rawNext : "/"
+  const requestedNext = url.searchParams.get("next") ?? "/"
+  // Only allow same-site relative paths to prevent open redirects.
+  const next = requestedNext.startsWith("/") && !requestedNext.startsWith("//") ? requestedNext : "/"
 
   if (code) {
-    const supabase = await createClient()
-    const { error } = await supabase.auth.exchangeCodeForSession(code)
-    if (error) {
-      // Link opened in a different browser, already used, or expired: go to login, not a blank home.
+    try {
+      const supabase = await createClient()
+      const { error } = await supabase.auth.exchangeCodeForSession(code)
+      if (error) {
+        console.error("[auth/callback] code exchange failed", error.code ?? error.message)
+        return NextResponse.redirect(new URL("/?auth=login", url.origin))
+      }
+    } catch (error) {
+      console.error("[auth/callback] code exchange threw", error)
       return NextResponse.redirect(new URL("/?auth=login", url.origin))
     }
   }

@@ -61,10 +61,3 @@ export const categories: { id: CategoryId; label: string; description: string }[
   { id: "errands", label: "Errands", description: "No vendors yet" },
   { id: "waybill", label: "Waybill", description: "No vendors yet" },
 ]
-
-export const orderStatusSteps: { key: OrderStatus | "confirmed"; label: string; desc: string }[] = [
-  { key: "confirmed", label: "Order confirmed", desc: "Vendor accepted your order" },
-  { key: "preparing", label: "Preparing your order", desc: "Your order is being packed" },
-  { key: "on_the_way", label: "Rider on the way", desc: "Your order is on the way" },
-  { key: "delivered", label: "Delivered", desc: "Order delivered" },
-]
