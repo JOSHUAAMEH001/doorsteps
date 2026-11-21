@@ -5,7 +5,7 @@ import Image from "next/image"
 import { ArrowLeft, ArrowRight, CheckCircle2, Clock, Eye, Info, MapPin, PencilLine, Plus, Star, Trash2 } from "lucide-react"
 import { finalizeApplicationFiles, submitVendorApplication } from "@/app/actions/recruit"
 import { uploadApplicationFiles, type PendingFile } from "@/lib/recruit-upload"
-import { Check18, Chips, Field, FilePick, FormAlert, Sheet, SheetHeader, Stepper, SubmitButton, Trap, inputClass, useObjectUrl } from "@/components/landing/form-ui"
+import { Check18, Chips, Field, FilePick, FormAlert, Sheet, SheetHeader, Stepper, SubmitButton, inputClass, useObjectUrl } from "@/components/landing/form-ui"
 import { ShareDoors } from "@/components/landing/waitlist-form"
 import { cn } from "@/lib/utils"
 
@@ -27,11 +27,9 @@ export function VendorFlow({ open, onClose, initialName }: { open: boolean; onCl
 }
 
 function VendorFlowBody({ onClose, initialName }: { onClose: () => void; initialName: string }) {
-  const started = useRef(Date.now())
   const scroller = useRef<HTMLDivElement>(null)
   const [step, setStep] = useState(0)
   const [tab, setTab] = useState<"form" | "preview">("form")
-  const [trap, setTrap] = useState("")
   const [f, setF] = useState({
     business_name: initialName, category: "", description: "", owner_name: "", phone: "", whatsapp: "", email: "", address: "",
     landmark: "", operating_hours: "", social_link: "", menu_text: "", registration_status: "" as Reg | "", contact_method: "whatsapp" as Contact, consent: false,
@@ -91,7 +89,6 @@ function VendorFlowBody({ onClose, initialName }: { onClose: () => void; initial
       const named = products.filter((p) => p.name.trim())
       const res = await submitVendorApplication(
         { ...f, products: named.map((p) => ({ name: p.name.trim(), price: p.price.replace(/,/g, "") || null })) },
-        { startedAt: started.current, trap },
       )
       if (!res.ok) {
         if (res.field) {
@@ -99,7 +96,7 @@ function VendorFlowBody({ onClose, initialName }: { onClose: () => void; initial
           const back = ["business_name", "category"].includes(res.field) ? 0 : res.field === "consent" ? 3 : 2
           setStep(back)
         }
-        setAlert(res.error ?? "Something went wrong. Please try again.")
+        setAlert(res.error ?? "We couldn't save your application. Please try again.")
         return
       }
       let failed = 0
@@ -152,7 +149,6 @@ function VendorFlowBody({ onClose, initialName }: { onClose: () => void; initial
 
   const form = (
     <form id="vendor-form" onSubmit={(e) => void submit(e)} noValidate className="relative flex flex-col gap-5">
-      <Trap value={trap} onChange={setTrap} />
       {step === 0 ? (
         <>
           <Field label="Business name" error={errors.business_name}>

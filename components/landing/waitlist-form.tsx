@@ -1,19 +1,17 @@
 "use client"
 
-import { useRef, useState, type FormEvent } from "react"
+import { useState, type FormEvent } from "react"
 import { CheckCircle2, Copy, Share2 } from "lucide-react"
 import { submitWaitlist } from "@/app/actions/recruit"
-import { Chips, Field, FormAlert, SubmitButton, Trap, inputClass } from "@/components/landing/form-ui"
+import { Chips, Field, FormAlert, SubmitButton, inputClass } from "@/components/landing/form-ui"
 
 type Service = "food" | "groceries" | "both"
 
 const AREAS = ["ESUT campus (hostel)", "ESUT staff quarters", "Agbani town", "Amechi Uwani / nearby", "Other"]
 
 export function WaitlistForm() {
-  const started = useRef(Date.now())
   const [form, setForm] = useState({ full_name: "", phone: "", email: "", area: "", areaOther: "", service: "" as Service | "", whatsapp: "", favourite: "", comments: "" })
   const [more, setMore] = useState(false)
-  const [trap, setTrap] = useState("")
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [fieldErr, setFieldErr] = useState<{ field?: string; msg?: string }>({})
@@ -34,11 +32,10 @@ export function WaitlistForm() {
     try {
       const res = await submitWaitlist(
         { full_name: form.full_name, phone: form.phone, email: form.email, area, service: form.service, whatsapp: form.whatsapp, favourite: form.favourite, comments: form.comments },
-        { startedAt: started.current, trap },
       )
       if (res.ok) setDone({ duplicate: Boolean(res.duplicate), name: form.full_name.trim().split(" ")[0] })
       else if (res.field) setFieldErr({ field: res.field, msg: res.error })
-      else setError(res.error ?? "Something went wrong. Please try again.")
+      else setError(res.error ?? "We couldn't save your details. Please try again.")
     } catch {
       setError("You seem to be offline. Check your connection and try again.")
     } finally {
@@ -50,7 +47,6 @@ export function WaitlistForm() {
 
   return (
     <form onSubmit={(e) => void submit(e)} noValidate className="relative flex flex-col gap-4">
-      <Trap value={trap} onChange={setTrap} />
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Full name" error={err("full_name")}>
           <input required autoComplete="name" value={form.full_name} onChange={set("full_name")} aria-invalid={Boolean(err("full_name"))} placeholder="e.g. Chiamaka Okafor" className={inputClass} />

@@ -8,7 +8,7 @@ import { createClient } from "@/lib/supabase/server"
  * Pre-launch recruitment forms (customer waitlist, vendor & rider applications).
  *
  * Visitors never touch the tables directly: these actions validate the input,
- * reject bots (honeypot + minimum fill time), then call SECURITY DEFINER
+ * then call SECURITY DEFINER
  * database functions that validate again, block duplicate phone numbers and
  * rate-limit per network. See supabase/migrations/20261121_recruitment_forms.sql.
  */
@@ -22,8 +22,6 @@ const RPC: Record<Kind, string> = {
   vendor: "submit_vendor_application",
   rider: "submit_rider_application",
 }
-
-const MIN_FILL_MS = 2_500
 
 async function networkHash() {
   const h = await headers()
@@ -64,46 +62,69 @@ function precheck(kind: Kind, p: Record<string, unknown>): SubmitResult | null {
     ?? (p.consent === true ? null : { ok: false, field: "consent", error: "Please agree so we can review your application." })
 }
 
-async function submit(kind: Kind, payload: Record<string, unknown>, meta: { startedAt: number; trap?: string }): Promise<SubmitResult> {
-  // Bots fill hidden fields and submit instantly. Humans see a gentle retry message.
-  if (meta.trap) return { ok: false, error: "Something went wrong. Please try again." }
-  if (!Number.isFinite(meta.startedAt) || Date.now() - meta.startedAt < MIN_FILL_MS) {
-    return { ok: false, error: "That was quick! Please check your details and press submit again." }
-  }
-  if (!payload || typeof payload !== "object" || JSON.stringify(payload).length > 20_000) {
-    return { ok: false, error: "That form couldn't be read. Please refresh and try again." }
+/** Short code shown with unexpected errors so a failed attempt can be matched to the server log. */
+const refCode = () => Math.random().toString(36).slice(2, 8).toUpperCase()
+
+/** Errors worth one automatic retry (network blips, timeouts, overloaded API). */
+function isTransient(error: { code?: string; message?: string; status?: number } | null) {
+  if (!error) return false
+  return /fetch failed|network|timeout|ECONNRESET|ETIMEDOUT|EAI_AGAIN|socket/i.test(error.message ?? "")
+    || ["57014", "08006", "08001", "PGRST000", "PGRST001", "PGRST003"].includes(error.code ?? "")
+    || (error.status !== undefined && error.status >= 500)
+}
+
+/**
+ * No hidden "honeypot" field and no minimum fill time: browser autofill and
+ * fast typists triggered those and blocked real people. Abuse is handled in
+ * the database instead (duplicate-phone check + per-network and global limits).
+ */
+async function submit(kind: Kind, payload: Record<string, unknown>): Promise<SubmitResult> {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload) || JSON.stringify(payload).length > 20_000) {
+    return { ok: false, error: "That form couldn't be read. Please refresh the page and try again." }
   }
   const early = precheck(kind, payload)
   if (early) return early
 
+  const ref = refCode()
   try {
     const supabase = await createClient()
-    const { data, error } = await supabase.rpc(RPC[kind], { p: payload, p_ip_hash: await networkHash() })
+    const ipHash = await networkHash()
+    let attempt = await supabase.rpc(RPC[kind], { p: payload, p_ip_hash: ipHash })
+    if (attempt.error && isTransient(attempt.error)) {
+      await new Promise((r) => setTimeout(r, 800))
+      attempt = await supabase.rpc(RPC[kind], { p: payload, p_ip_hash: ipHash })
+    }
+    const { data, error } = attempt
     if (error) {
-      console.error(`[recruit] ${kind} submit failed`, error)
-      if (error.code === "PGRST202" || error.code === "42883") {
-        return { ok: false, error: "Sign-ups aren't open just yet. Please try again shortly." }
+      console.error(`[recruit] ${kind} submit failed ref=${ref}`, { code: error.code, message: error.message, details: error.details, hint: error.hint })
+      if (error.code === "PGRST202" || error.code === "42883" || error.code === "42P01") {
+        return { ok: false, error: `Sign-ups are being set up. Please try again in a few minutes. (Ref ${ref})` }
       }
-      return { ok: false, error: "We couldn't save your details. Please check your connection and try again." }
+      if (isTransient(error)) return { ok: false, error: `Our server is busy right now. Your details are still here: please press the button again. (Ref ${ref})` }
+      return { ok: false, error: `We couldn't save your details. Please try again, or call DOORS on 0701 803 8264. (Ref ${ref})` }
     }
     const result = (data ?? {}) as SubmitResult
+    if (!result.ok && !result.error) {
+      console.error(`[recruit] ${kind} unexpected response ref=${ref}`, data)
+      return { ok: false, error: `We couldn't save your details. Please try again. (Ref ${ref})` }
+    }
     return { ok: Boolean(result.ok), duplicate: result.duplicate, id: result.id, error: result.error, field: result.field }
   } catch (error) {
-    console.error(`[recruit] ${kind} submit crashed`, error)
-    return { ok: false, error: "We couldn't save your details. Please check your connection and try again." }
+    console.error(`[recruit] ${kind} submit crashed ref=${ref}`, error)
+    return { ok: false, error: `We couldn't reach our server. Your details are still here: please try again. (Ref ${ref})` }
   }
 }
 
-export async function submitWaitlist(payload: Record<string, unknown>, meta: { startedAt: number; trap?: string }) {
-  return submit("waitlist", payload, meta)
+export async function submitWaitlist(payload: Record<string, unknown>) {
+  return submit("waitlist", payload)
 }
 
-export async function submitVendorApplication(payload: Record<string, unknown>, meta: { startedAt: number; trap?: string }) {
-  return submit("vendor", payload, meta)
+export async function submitVendorApplication(payload: Record<string, unknown>) {
+  return submit("vendor", payload)
 }
 
-export async function submitRiderApplication(payload: Record<string, unknown>, meta: { startedAt: number; trap?: string }) {
-  return submit("rider", payload, meta)
+export async function submitRiderApplication(payload: Record<string, unknown>) {
+  return submit("rider", payload)
 }
 
 /** Records how many files reached storage for an application (shown to admins). */
