@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState, type FormEvent } from "react"
 import Image from "next/image"
+import useSWR from "swr"
+import { getFormOptions } from "@/app/actions/form-options"
 import { ArrowLeft, ArrowRight, CheckCircle2, Clock, Eye, Info, MapPin, PencilLine, Plus, Star, Trash2 } from "lucide-react"
 import { finalizeApplicationFiles, submitVendorApplication } from "@/app/actions/recruit"
 import { uploadApplicationFiles, type PendingFile } from "@/lib/recruit-upload"
@@ -9,7 +11,6 @@ import { Check18, Chips, Field, FilePick, FormAlert, Sheet, SheetHeader, Stepper
 import { ShareDoors } from "@/components/landing/waitlist-form"
 import { cn } from "@/lib/utils"
 
-const CATEGORIES = ["Restaurant", "Food vendor / Buka", "Supermarket", "Grocery store", "Bakery & snacks", "Drinks & smoothies", "Other"]
 const STEPS = ["Your business", "Products", "Contact", "Review"]
 
 type Product = { key: number; name: string; price: string; photo: File | null }
@@ -31,7 +32,7 @@ function VendorFlowBody({ onClose, initialName }: { onClose: () => void; initial
   const [step, setStep] = useState(0)
   const [tab, setTab] = useState<"form" | "preview">("form")
   const [f, setF] = useState({
-    business_name: initialName, category: "", description: "", owner_name: "", phone: "", whatsapp: "", email: "", address: "",
+    business_name: initialName, category: "", categoryOther: "", description: "", owner_name: "", phone: "", whatsapp: "", email: "", address: "",
     landmark: "", operating_hours: "", social_link: "", menu_text: "", registration_status: "" as Reg | "", contact_method: "whatsapp" as Contact, consent: false,
   })
   const [logo, setLogo] = useState<File | null>(null)
@@ -44,6 +45,10 @@ function VendorFlowBody({ onClose, initialName }: { onClose: () => void; initial
   const [progress, setProgress] = useState<string | null>(null)
   const [done, setDone] = useState<null | { duplicate: boolean; failed: number }>(null)
 
+  // Categories are managed by DOORS admins; "Other" lets vendors type their own.
+  const { data: options } = useSWR("form-options", getFormOptions, { revalidateOnFocus: false })
+  const categories = [...(options?.vendor_categories ?? []), "Other"]
+  const category = f.category === "Other" ? f.categoryOther.trim() : f.category
   const set = (k: keyof typeof f) => (e: { target: { value: string } }) => setF((s) => ({ ...s, [k]: e.target.value }))
   const fileError = (msg: string) => setAlert(msg)
 
@@ -54,6 +59,7 @@ function VendorFlowBody({ onClose, initialName }: { onClose: () => void; initial
     if (s === 0) {
       if (f.business_name.trim().length < 2) e.business_name = "Enter your business name."
       if (!f.category) e.category = "Choose a category."
+      else if (f.category === "Other" && f.categoryOther.trim().length < 2) e.category = "Type your business category."
     }
     if (s === 1) {
       products.forEach((p) => {
@@ -88,7 +94,7 @@ function VendorFlowBody({ onClose, initialName }: { onClose: () => void; initial
     try {
       const named = products.filter((p) => p.name.trim())
       const res = await submitVendorApplication(
-        { ...f, products: named.map((p) => ({ name: p.name.trim(), price: p.price.replace(/,/g, "") || null })) },
+        { ...f, category, products: named.map((p) => ({ name: p.name.trim(), price: p.price.replace(/,/g, "") || null })) },
       )
       if (!res.ok) {
         if (res.field) {
@@ -154,7 +160,12 @@ function VendorFlowBody({ onClose, initialName }: { onClose: () => void; initial
           <Field label="Business name" error={errors.business_name}>
             <input value={f.business_name} onChange={set("business_name")} maxLength={80} aria-invalid={Boolean(errors.business_name)} placeholder="e.g. Mama Ngozi Kitchen" className={inputClass} autoFocus />
           </Field>
-          <Chips label="Business category" value={f.category} onChange={(v) => setF((s) => ({ ...s, category: v }))} error={errors.category} options={CATEGORIES.map((c) => ({ value: c, label: c }))} />
+          <Chips label="Business category" value={f.category} onChange={(v) => setF((s) => ({ ...s, category: v }))} error={errors.category} options={categories.map((c) => ({ value: c, label: c }))} />
+          {f.category === "Other" ? (
+            <Field label="Your business category">
+              <input value={f.categoryOther} onChange={set("categoryOther")} maxLength={40} placeholder="Type your category" className={inputClass} />
+            </Field>
+          ) : null}
           <Field label="Describe your business" optional hint="What do you sell? What are you known for?">
             <textarea rows={3} value={f.description} onChange={set("description")} maxLength={600} placeholder="Home-style Nigerian meals: jollof, fried rice, native soups and swallow." className={inputClass} />
           </Field>
@@ -214,11 +225,11 @@ function VendorFlowBody({ onClose, initialName }: { onClose: () => void; initial
             </Field>
           </div>
           <Field label="Business location / address" error={errors.address}>
-            <input value={f.address} onChange={set("address")} maxLength={200} aria-invalid={Boolean(errors.address)} placeholder="e.g. Shop 4, Main Gate Road, Agbani" className={inputClass} />
+            <input value={f.address} onChange={set("address")} maxLength={200} aria-invalid={Boolean(errors.address)} placeholder="Street, building or shop number" className={inputClass} />
           </Field>
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Nearby landmark" optional>
-              <input value={f.landmark} onChange={set("landmark")} maxLength={120} placeholder="e.g. Opposite ESUT main gate" className={inputClass} />
+              <input value={f.landmark} onChange={set("landmark")} maxLength={120} placeholder="A well-known place near you" className={inputClass} />
             </Field>
             <Field label="Opening hours" optional>
               <input value={f.operating_hours} onChange={set("operating_hours")} maxLength={120} placeholder="Mon–Sat, 8am – 9pm" className={inputClass} />
@@ -249,7 +260,7 @@ function VendorFlowBody({ onClose, initialName }: { onClose: () => void; initial
             <p className="text-xs font-bold uppercase tracking-wider text-[#8A8A8A]">Summary</p>
             <dl className="mt-3 grid gap-3 text-sm sm:grid-cols-2">
               {[
-                ["Business", f.business_name], ["Category", f.category], ["Owner", f.owner_name], ["Phone", f.phone],
+                ["Business", f.business_name], ["Category", category], ["Owner", f.owner_name], ["Phone", f.phone],
                 ["Location", f.address], ["Products", `${products.filter((p) => p.name.trim()).length} added`],
                 ["Photos", String([logo, cover, menuFile, ...products.map((p) => p.photo)].filter(Boolean).length)], ["Contact by", f.contact_method],
               ].map(([k, v]) => (
@@ -284,7 +295,7 @@ function VendorFlowBody({ onClose, initialName }: { onClose: () => void; initial
       <div className="flex min-h-0 flex-1">
         <div ref={scroller} className={cn("min-h-0 flex-1 overflow-y-auto px-5 py-6 sm:px-7", tab === "preview" && "hidden lg:block")}>{form}</div>
         <aside aria-label="Live storefront preview" className={cn("min-h-0 overflow-y-auto border-l border-[#EAEAEA] bg-[#171717] p-6 lg:block lg:w-[420px]", tab === "preview" ? "block flex-1" : "hidden")}>
-          <StorefrontPreview name={f.business_name} category={f.category} description={f.description} logo={logo} cover={cover} products={products} hours={f.operating_hours} landmark={f.landmark || f.address} />
+          <StorefrontPreview name={f.business_name} category={category} description={f.description} logo={logo} cover={cover} products={products} hours={f.operating_hours} landmark={f.landmark || f.address} />
         </aside>
       </div>
       <div className="shrink-0 border-t border-[#EAEAEA] bg-white px-5 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-7">

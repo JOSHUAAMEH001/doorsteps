@@ -2,7 +2,8 @@
 
 import { useMemo, useState } from "react"
 import useSWR from "swr"
-import { Bike, Download, FileText, Inbox, Loader2, Sparkles, Store } from "lucide-react"
+import { Bike, Download, FileText, Inbox, ListChecks, Loader2, Sparkles, Store } from "lucide-react"
+import { getFormOptions, updateFormOptions, type FormOptionKey } from "@/app/actions/form-options"
 import {
   getApplicationFiles, getRecruitment, updateRecruitStatus,
   type RiderApplication, type VendorApplication, type WaitlistSignup,
@@ -64,6 +65,7 @@ export function RecruitmentSection({ notify }: { notify: (text: string, tone?: "
         <StatCard label="Rider applications" value={String(d?.riders.length ?? 0)} icon={Bike} tone="warning" hint={`${d?.riders.filter((w) => w.status === "new").length ?? 0} new`} onClick={() => setKind("rider")} />
         <StatCard label="Signed up today" value={String([...(d?.waitlist ?? []), ...(d?.vendors ?? []), ...(d?.riders ?? [])].filter((r) => r.created_at.slice(0, 10) === new Date().toISOString().slice(0, 10)).length)} icon={Inbox} tone="success" />
       </StatGrid>
+      <FormChoicesEditor notify={notify} />
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <FilterTabs label="Sign-up type" value={kind} onChange={(k) => { setKind(k); setStatus("all") }} options={[
           { value: "waitlist", label: "Waitlist", count: d?.waitlist.length },
@@ -96,7 +98,7 @@ function RecordCard({ kind, r, onStatus }: { kind: Kind; r: WaitlistSignup | Ven
     ? [["Email", (r as WaitlistSignup).email], ["WhatsApp", (r as WaitlistSignup).whatsapp], ["Favourite", (r as WaitlistSignup).favourite], ["Comments", (r as WaitlistSignup).comments]]
     : kind === "vendor"
       ? (() => { const v = r as VendorApplication; return [["Email", v.email], ["WhatsApp", v.whatsapp], ["Address", v.address], ["Landmark", v.landmark], ["Hours", v.operating_hours], ["Social", v.social_link], ["CAC", v.registration_status.replace("_", " ")], ["Contact by", v.contact_method], ["Description", v.description], ["Products", v.products.map((p) => `${p.name}${p.price ? ` (${naira(p.price)})` : ""}`).join(", ")], ["Menu", v.menu_text], ["Files", String(v.files_uploaded)]] as [string, string | null][] })()
-      : (() => { const v = r as RiderApplication; return [["Email", v.email], ["WhatsApp", v.whatsapp], ["Lives in", v.residential_area], ["Vehicle access", v.vehicle_access], ["Experience", v.experience], ["Emergency contact", `${v.emergency_name} · ${v.emergency_phone}`], ["Files", String(v.files_uploaded)]] as [string, string | null][] })()
+      : (() => { const v = r as RiderApplication; return [["Email", v.email], ["WhatsApp", v.whatsapp], ["Lives in", v.residential_area], ["Vehicle access", v.vehicle_access ?? null], ["Experience", v.experience], ["Emergency contact", `${v.emergency_name} · ${v.emergency_phone}`], ["Files", String(v.files_uploaded)]] as [string, string | null][] })()
 
   return (
     <article className="rounded-2xl border border-border bg-card p-4">
@@ -144,6 +146,51 @@ function Files({ kind, id }: { kind: "vendor" | "rider"; id: string }) {
           </li>
         ))}
       </ul>
+    </div>
+  )
+}
+
+/** Admin editor for the choice lists shown on /join. One choice per line; "Other" is always added for visitors. */
+export function FormChoicesEditor({ notify }: { notify: (text: string, tone?: "error") => void }) {
+  const { data, mutate } = useSWR("form-options", getFormOptions, { revalidateOnFocus: false })
+  return (
+    <Panel title="Form choices" icon={ListChecks}>
+      <p className="mb-4 text-sm text-muted-foreground">These lists appear on the DOORS landing page (/join). Put one choice per line. Visitors can always pick &ldquo;Other&rdquo; and type their own.</p>
+      <div className="grid gap-4 lg:grid-cols-2">
+        {data ? (
+          <>
+            <ChoiceList label="Waitlist: “Where are you around ESUT / Agbani?”" listKey="waitlist_areas" initial={data.waitlist_areas} notify={notify} onSaved={() => void mutate()} />
+            <ChoiceList label="Vendor form: “Business category”" listKey="vendor_categories" initial={data.vendor_categories} notify={notify} onSaved={() => void mutate()} />
+          </>
+        ) : <ListSkeleton rows={2} />}
+      </div>
+    </Panel>
+  )
+}
+
+function ChoiceList({ label, listKey, initial, notify, onSaved }: { label: string; listKey: FormOptionKey; initial: string[]; notify: (text: string, tone?: "error") => void; onSaved: () => void }) {
+  const [text, setText] = useState(initial.join("\n"))
+  const [busy, setBusy] = useState(false)
+  const dirty = text.trim() !== initial.join("\n").trim()
+  async function save() {
+    setBusy(true)
+    const res = await updateFormOptions(listKey, text.split("\n"))
+    setBusy(false)
+    if (res.error) notify(res.error, "error")
+    else { notify("Choices saved. They're live on /join now."); if (res.saved) setText(res.saved.join("\n")); onSaved() }
+  }
+  return (
+    <div className="flex flex-col gap-2">
+      <label className="text-sm font-semibold text-foreground">
+        {label}
+        <textarea value={text} onChange={(e) => setText(e.target.value)} rows={7} className="mt-1.5 w-full rounded-xl border border-border bg-background px-3 py-2 text-sm font-normal outline-none focus:border-brand" />
+      </label>
+      <div className="flex items-center gap-2">
+        <button type="button" disabled={!dirty || busy} onClick={() => void save()} className="inline-flex items-center gap-1.5 rounded-xl bg-brand px-4 py-2 text-sm font-bold text-white disabled:opacity-50">
+          {busy ? <Loader2 aria-hidden="true" className="size-4 animate-spin" /> : null}Save
+        </button>
+        {dirty ? <button type="button" onClick={() => setText(initial.join("\n"))} className="text-sm font-semibold text-muted-foreground hover:underline">Undo changes</button> : null}
+      </div>
     </div>
   )
 }

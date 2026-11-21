@@ -56,7 +56,7 @@ function precheck(kind: Kind, p: Record<string, unknown>): SubmitResult | null {
   }
   return need("full_name", "Enter your full name.") ?? phone("phone", "Enter a valid Nigerian phone number.") ?? email() ?? need("residential_area", "Tell us where you live.")
     ?? (p.is_adult === true ? null : { ok: false, field: "is_adult", error: "Riders must be 18 or older." })
-    ?? need("vehicle_type", "Choose your vehicle type.", 1) ?? need("vehicle_access", "Tell us if you own or can use the vehicle.", 1)
+    ?? need("vehicle_type", "Choose your vehicle type.", 1)
     ?? need("availability", "Choose when you can work.", 1) ?? need("emergency_name", "Enter an emergency contact name.")
     ?? phone("emergency_phone", "Enter a valid emergency contact number.")
     ?? (p.consent === true ? null : { ok: false, field: "consent", error: "Please agree so we can review your application." })

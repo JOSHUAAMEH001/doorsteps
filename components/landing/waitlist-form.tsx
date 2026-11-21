@@ -1,17 +1,20 @@
 "use client"
 
 import { useState, type FormEvent } from "react"
+import useSWR from "swr"
+import { getFormOptions } from "@/app/actions/form-options"
 import { CheckCircle2, Copy, Share2 } from "lucide-react"
 import { submitWaitlist } from "@/app/actions/recruit"
 import { Chips, Field, FormAlert, SubmitButton, inputClass } from "@/components/landing/form-ui"
 
 type Service = "food" | "groceries" | "both"
 
-const AREAS = ["ESUT campus (hostel)", "ESUT staff quarters", "Agbani town", "Amechi Uwani / nearby", "Other"]
-
 export function WaitlistForm() {
   const [form, setForm] = useState({ full_name: "", phone: "", email: "", area: "", areaOther: "", service: "" as Service | "", whatsapp: "", favourite: "", comments: "" })
   const [more, setMore] = useState(false)
+  // Areas are managed by DOORS admins (Admin → Pre-launch sign-ups → Form choices). "Other" is always offered.
+  const { data: options } = useSWR("form-options", getFormOptions, { revalidateOnFocus: false })
+  const areas = [...(options?.waitlist_areas ?? []), "Other"]
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [fieldErr, setFieldErr] = useState<{ field?: string; msg?: string }>({})
@@ -61,12 +64,12 @@ export function WaitlistForm() {
       <Field label="Where are you around ESUT / Agbani?" error={err("area")}>
         <select value={form.area} onChange={set("area")} aria-invalid={Boolean(err("area"))} className={inputClass}>
           <option value="">Choose your area</option>
-          {AREAS.map((a) => <option key={a} value={a}>{a}</option>)}
+          {areas.map((a) => <option key={a} value={a}>{a}</option>)}
         </select>
       </Field>
       {form.area === "Other" ? (
         <Field label="Your area">
-          <input value={form.areaOther} onChange={set("areaOther")} placeholder="e.g. Obe, near the junction" className={inputClass} />
+          <input value={form.areaOther} onChange={set("areaOther")} placeholder="Type your area" className={inputClass} />
         </Field>
       ) : null}
       <Chips<Service>
