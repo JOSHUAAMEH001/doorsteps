@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState, type FormEvent } from "react"
+import { useRouter } from "next/navigation"
 import { Eye, EyeOff, LoaderCircle } from "lucide-react"
 import { Logo } from "@/components/brand/logo"
 import { PrimaryButton } from "@/components/app/ui"
@@ -36,6 +37,7 @@ function getPasswordUpdateErrorMessage(error: unknown) {
 }
 
 export default function ResetPasswordPage() {
+  const router = useRouter()
   const [ready, setReady] = useState<"checking" | "ready" | "expired">("checking")
   const [password, setPassword] = useState("")
   const [confirm, setConfirm] = useState("")
@@ -47,6 +49,17 @@ export default function ResetPasswordPage() {
   const requestInFlight = useRef(false)
 
   useEffect(() => {
+    // Read the link BEFORE creating the client, so nothing can strip the tokens from the URL first.
+    const url = new URL(window.location.href)
+    const hash = new URLSearchParams(url.hash.replace(/^#/, ""))
+    const accessToken = hash.get("access_token")
+    const refreshToken = hash.get("refresh_token")
+    const code = url.searchParams.get("code")
+    const linkError = url.searchParams.get("error_code") || hash.get("error_code") || url.searchParams.get("error") || hash.get("error")
+    // Remove tokens from the address bar (they shouldn't sit in history). Run after Next.js has
+    // finished its own first URL sync, otherwise it puts the hash back.
+    const clearUrl = () => { if (accessToken || code || linkError) router.replace(url.pathname, { scroll: false }) }
+
     const supabase = createClient()
     let active = true
 
@@ -55,39 +68,40 @@ export default function ResetPasswordPage() {
       if (event === "PASSWORD_RECOVERY" || session) setReady("ready")
     })
 
+    const hasSession = async () => Boolean((await supabase.auth.getSession()).data.session)
+
     const checkSession = async () => {
       try {
-        const url = new URL(window.location.href)
-        const hash = new URLSearchParams(url.hash.replace(/^#/, ""))
-        // Supabase reports expired/used links as error params on the redirect.
-        if (url.searchParams.get("error_code") || hash.get("error_code") || url.searchParams.get("error") || hash.get("error")) {
-          if (active) setReady("expired")
+        // Cross-device links (implicit flow): #access_token=...&refresh_token=...&type=recovery
+        if (accessToken && refreshToken) {
+          const { error } = await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken })
+          clearPendingRecovery()
+          if (active) setReady(!error || (await hasSession()) ? "ready" : "expired")
           return
         }
 
-        // PKCE flow: the email link arrives as ?code=..., which must be exchanged for a session.
-        const code = url.searchParams.get("code")
+        // Same-browser links (PKCE flow): ?code=...
         if (code) {
           const { error } = await supabase.auth.exchangeCodeForSession(code)
-          window.history.replaceState(null, "", url.pathname)
           clearPendingRecovery()
-          if (!active) return
-          if (error) {
-            // The code may already have been exchanged (e.g. React strict mode re-run).
-            const { data } = await supabase.auth.getSession()
-            if (active) setReady(data.session ? "ready" : "expired")
-          } else {
-            setReady("ready")
-          }
+          if (active) setReady(!error || (await hasSession()) ? "ready" : "expired")
           return
         }
 
-        // Implicit flow (#access_token=...&type=recovery) is picked up by the client automatically.
-        const { data } = await supabase.auth.getSession()
-        if (data.session) clearPendingRecovery()
-        if (active) setReady(data.session ? "ready" : "expired")
+        // Expired or already-used link. If this browser already opened a valid link a moment
+        // ago (e.g. the email was tapped twice), the person is signed in and can still continue.
+        if (linkError) {
+          if (active) setReady((await hasSession()) ? "ready" : "expired")
+          return
+        }
+
+        const signedIn = await hasSession()
+        if (signedIn) clearPendingRecovery()
+        if (active) setReady(signedIn ? "ready" : "expired")
       } catch {
         if (active) setReady("expired")
+      } finally {
+        window.setTimeout(clearUrl, 50)
       }
     }
 
@@ -136,8 +150,9 @@ export default function ResetPasswordPage() {
           </p>
         ) : ready === "expired" ? (
           <>
-            <p role="alert" className="mt-3 rounded-2xl border border-destructive/15 bg-destructive/5 px-4 py-3 text-sm text-destructive">This reset link has expired or has already been used. Request a new one to continue.</p>
-            <a href="/forgot-password" className="mt-6 block rounded-sm text-center text-sm font-semibold text-brand hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand">Request a new reset link</a>
+            <p role="alert" className="mt-3 rounded-2xl border border-destructive/15 bg-destructive/5 px-4 py-3 text-sm text-destructive">This email link has expired or was already used. Each link works once, and only the newest email is valid. If you were resetting your password, get a new link below. If you were confirming your email, just log in.</p>
+            <a href="/forgot-password" className="mt-6 flex min-h-12 items-center justify-center rounded-2xl bg-brand px-5 text-sm font-bold text-brand-foreground">Send me a new reset link</a>
+            <a href="/?auth=login" className="mt-3 block rounded-sm text-center text-sm font-semibold text-brand hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand">Back to login</a>
           </>
         ) : updated ? (
           <p role="status" aria-live="polite" className="mt-5 rounded-2xl border border-success/20 bg-success-soft px-4 py-3 text-sm font-semibold text-success">Password updated. Redirecting to login...</p>
