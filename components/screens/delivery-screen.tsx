@@ -1,47 +1,44 @@
 "use client"
 
-import { Check, Clock, Home, MapPin, Phone } from "lucide-react"
-import { useState } from "react"
+import { Clock, MapPin, Phone } from "lucide-react"
+import { useEffect, useState } from "react"
 import { ScreenHeader, PrimaryButton } from "@/components/app/ui"
 import { useApp } from "@/lib/store"
 import { cn } from "@/lib/utils"
 
-const savedAddresses = [
-  {
-    id: "hostel",
-    label: "Hostel B",
-    address: "Room 12, ESUT Hostel B, Agbani",
-    icon: Home,
-  },
-  {
-    id: "faculty",
-    label: "Faculty of Engineering",
-    address: "Engineering complex, ESUT Agbani",
-    icon: MapPin,
-  },
-]
-
 const timeOptions = ["As soon as possible", "In 30 minutes", "In 1 hour", "Schedule"]
+const NG_PHONE = /^(0|\+?234)?[789][01]\d{8}$/
 
 export function DeliveryScreen() {
   const { navigate, setDeliveryDetails } = useApp()
-  const [addressId, setAddressId] = useState("hostel")
-  const [customAddress, setCustomAddress] = useState("")
-  const [showCustomAddress, setShowCustomAddress] = useState(false)
-  const [phone, setPhone] = useState("0801 234 5678")
+  const [address, setAddress] = useState("")
+  const [phone, setPhone] = useState("")
   const [instructions, setInstructions] = useState("")
   const [time, setTime] = useState(timeOptions[0])
   const [error, setError] = useState("")
 
-  const selectedAddress = savedAddresses.find((address) => address.id === addressId)?.address ?? customAddress
+  // Prefill the customer's OWN last address and phone on this device (no sample data).
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem("doors-delivery") ?? "null") as { address?: string; phone?: string } | null
+      if (saved?.address) setAddress(saved.address)
+      if (saved?.phone) setPhone(saved.phone)
+    } catch { /* storage unavailable */ }
+  }, [])
 
   function continueToPayment() {
-    if (!selectedAddress.trim() || phone.replace(/\D/g, "").length < 10) {
-      setError("Add a delivery address and a valid Nigerian phone number to continue.")
+    const cleanAddress = address.trim()
+    if (cleanAddress.length < 4) {
+      setError("Enter your delivery address, e.g. your hostel, block and room number.")
+      return
+    }
+    if (!NG_PHONE.test(phone.replace(/[\s-]/g, ""))) {
+      setError("Enter a valid Nigerian phone number, e.g. 0803 000 0000.")
       return
     }
     setError("")
-    setDeliveryDetails({ address: selectedAddress, phone, instructions, time })
+    try { localStorage.setItem("doors-delivery", JSON.stringify({ address: cleanAddress, phone: phone.trim() })) } catch { /* storage unavailable */ }
+    setDeliveryDetails({ address: cleanAddress, phone, instructions, time })
     navigate("payment")
   }
 
@@ -53,63 +50,18 @@ export function DeliveryScreen() {
         {/* Address */}
         <section>
           <h2 className="mb-3 text-sm font-bold text-foreground">Delivery address</h2>
-          <div className="space-y-3">
-            {savedAddresses.map((a) => {
-              const Icon = a.icon
-              const active = addressId === a.id
-              return (
-                <button
-                  key={a.id}
-                  type="button"
-                  onClick={() => setAddressId(a.id)}
-                  className={cn(
-                    "flex w-full items-center gap-3 rounded-2xl border p-3.5 text-left transition-colors",
-                    active ? "border-brand bg-brand-soft" : "border-border bg-card",
-                  )}
-                >
-                  <span
-                    className={cn(
-                      "flex h-10 w-10 items-center justify-center rounded-xl",
-                      active ? "bg-brand text-brand-foreground" : "bg-secondary text-foreground",
-                    )}
-                  >
-                    <Icon className="h-5 w-5" />
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-bold text-foreground">{a.label}</p>
-                    <p className="truncate text-xs text-muted-foreground">{a.address}</p>
-                  </div>
-                  {active ? (
-                    <span className="flex h-5 w-5 items-center justify-center rounded-full bg-brand text-brand-foreground">
-                      <Check className="h-3.5 w-3.5" strokeWidth={3} />
-                    </span>
-                  ) : null}
-                </button>
-              )
-            })}
-            {showCustomAddress ? (
-              <input
-                value={customAddress}
-                onChange={(event) => {
-                  setCustomAddress(event.target.value)
-                  setAddressId("custom")
-                }}
-                placeholder="e.g. Flat 4, Agbani junction"
-                className="w-full rounded-2xl border border-brand bg-background px-4 py-3 text-sm outline-none"
-                autoFocus
-              />
-            ) : (
-              <button
-                type="button"
-                onClick={() => {
-                  setShowCustomAddress(true)
-                  setAddressId("custom")
-                }}
-                className="w-full rounded-2xl border border-dashed border-border py-3 text-sm font-semibold text-brand"
-              >
-                + Add new address
-              </button>
-            )}
+          <div className="flex items-start gap-2 rounded-2xl border border-border bg-background px-4 py-3 focus-within:border-brand">
+            <MapPin aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+            <textarea
+              value={address}
+              onChange={(e) => setAddress(e.target.value)}
+              rows={2}
+              maxLength={200}
+              aria-label="Delivery address"
+              autoComplete="street-address"
+              placeholder="Where should we deliver? e.g. your hostel, block and room number"
+              className="flex-1 resize-none bg-transparent text-sm outline-none"
+            />
           </div>
         </section>
 
@@ -117,10 +69,15 @@ export function DeliveryScreen() {
         <section>
           <h2 className="mb-2 text-sm font-bold text-foreground">Contact number</h2>
           <div className="flex items-center gap-2 rounded-2xl border border-border bg-background px-4 py-3 focus-within:border-brand">
-            <Phone className="h-4 w-4 text-muted-foreground" />
+            <Phone aria-hidden="true" className="h-4 w-4 text-muted-foreground" />
             <input
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
+              type="tel"
+              inputMode="tel"
+              autoComplete="tel"
+              aria-label="Contact number"
+              placeholder="0803 000 0000"
               className="flex-1 bg-transparent text-sm outline-none"
             />
           </div>
@@ -135,7 +92,7 @@ export function DeliveryScreen() {
             value={instructions}
             onChange={(e) => setInstructions(e.target.value)}
             rows={3}
-            placeholder="e.g. Call when you reach the gate, ask for Chidera"
+            placeholder="e.g. Call when you reach the gate"
             className="w-full resize-none rounded-2xl border border-border bg-background px-4 py-3 text-sm outline-none focus:border-brand"
           />
         </section>
@@ -166,7 +123,7 @@ export function DeliveryScreen() {
       </div>
 
       <div className="border-t border-border bg-background px-5 py-4">
-        {error ? <p className="mb-3 rounded-xl bg-destructive/10 px-3 py-2 text-xs font-medium text-destructive">{error}</p> : null}
+        {error ? <p role="alert" className="mb-3 rounded-xl bg-destructive/10 px-3 py-2 text-xs font-medium text-destructive">{error}</p> : null}
         <PrimaryButton onClick={continueToPayment}>
           Continue to payment
         </PrimaryButton>

@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState, type FormEvent } from "react"
+import { useRouter } from "next/navigation"
 import { Eye, EyeOff, LoaderCircle } from "lucide-react"
 import { Logo } from "@/components/brand/logo"
 import { PrimaryButton } from "@/components/app/ui"
@@ -75,6 +76,7 @@ function verifyRecoveryLink(supabase: RecoveryClient, url: URL): Promise<LinkRes
 }
 
 export default function ResetPasswordPage() {
+  const router = useRouter()
   const [ready, setReady] = useState<"checking" | "ready" | "expired">("checking")
   const [accountEmail, setAccountEmail] = useState("")
   const [password, setPassword] = useState("")
@@ -96,8 +98,9 @@ export default function ResetPasswordPage() {
 
     verifyRecoveryLink(supabase, url)
       .then((result) => {
-        // Remove one-time tokens from the address bar and browser history.
-        window.history.replaceState(null, "", url.pathname)
+        // Remove one-time tokens from the address bar and history. Runs after Next.js has
+        // finished its own first URL sync, otherwise it puts the hash back.
+        window.setTimeout(() => router.replace(url.pathname, { scroll: false }), 50)
         clearPendingRecovery()
         if (!active) return
         if ("email" in result) {
@@ -110,7 +113,7 @@ export default function ResetPasswordPage() {
       .catch(() => { if (active) setReady("expired") })
 
     return () => { active = false }
-  }, [])
+  }, [router])
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -154,8 +157,9 @@ export default function ResetPasswordPage() {
           </p>
         ) : ready === "expired" ? (
           <>
-            <p role="alert" className="mt-3 rounded-2xl border border-destructive/15 bg-destructive/5 px-4 py-3 text-sm text-destructive">This reset link has expired or has already been used. Request a new one to continue.</p>
-            <a href="/forgot-password" className="mt-6 block rounded-sm text-center text-sm font-semibold text-brand hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand">Request a new reset link</a>
+            <p role="alert" className="mt-3 rounded-2xl border border-destructive/15 bg-destructive/5 px-4 py-3 text-sm text-destructive">This email link has expired or was already used. Each link works once, and only the newest email is valid. If you were resetting your password, get a new link below. If you were confirming your email, just log in.</p>
+            <a href="/forgot-password" className="mt-6 flex min-h-12 items-center justify-center rounded-2xl bg-brand px-5 text-sm font-bold text-brand-foreground">Send me a new reset link</a>
+            <a href="/?auth=login" className="mt-3 block rounded-sm text-center text-sm font-semibold text-brand hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand">Back to login</a>
           </>
         ) : updated ? (
           <p role="status" aria-live="polite" className="mt-5 rounded-2xl border border-success/20 bg-success-soft px-4 py-3 text-sm font-semibold text-success">Password updated. Redirecting to login...</p>

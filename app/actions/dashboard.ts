@@ -213,7 +213,7 @@ export type VendorOrder = {
   order_items: { item_name: string; unit_price: number; quantity: number }[]
 }
 
-export type VendorMenuItem = { id: string; name: string; description: string | null; price: number; image_url: string | null; is_available: boolean; category: string | null; stock_quantity: number | null }
+export type VendorMenuItem = { id: string; name: string; description: string | null; price: number; image_url: string | null; video_url: string | null; is_available: boolean; category: string | null; stock_quantity: number | null }
 
 export type VendorWorkspace = {
   vendor: VendorRow | null
@@ -222,6 +222,26 @@ export type VendorWorkspace = {
 }
 
 const EMPTY_VENDOR: VendorWorkspace = { vendor: null, orders: [], menu: [] }
+
+const MENU_COLUMNS = "id, name, description, price, image_url, is_available, category, stock_quantity"
+
+/** Postgres "undefined column": the video_url migration hasn't been applied yet. */
+function isMissingColumn(error: { code?: string } | null | undefined) {
+  return error?.code === "42703"
+}
+
+async function loadMenu(supabase: Caller["supabase"], vendorId: string) {
+  const withVideo = await supabase.from("menu_items").select(`${MENU_COLUMNS}, video_url`).eq("vendor_id", vendorId).order("name")
+  if (!isMissingColumn(withVideo.error)) return withVideo
+  const plain = await supabase.from("menu_items").select(MENU_COLUMNS).eq("vendor_id", vendorId).order("name")
+  return { ...plain, data: (plain.data ?? []).map((row) => ({ ...row, video_url: null as string | null })) }
+}
+
+/** Public URL prefix for files a vendor uploaded into their own folder. */
+function vendorMediaPrefix(vendorId: string) {
+  const base = (process.env.APP_SUPABASE_URL ?? process.env.NEXT_PUBLIC_APP_SUPABASE_URL ?? "").replace(/\/+$/, "")
+  return `${base}/storage/v1/object/public/menu-images/vendors/${vendorId}/`
+}
 
 /**
  * Vendors get their own store. Admins may preview any store read-only by
@@ -244,7 +264,7 @@ export async function getVendorWorkspace(previewVendorId?: string): Promise<Acti
         .eq("vendor_id", vendorId)
         .order("created_at", { ascending: false })
         .limit(500),
-      supabase.from("menu_items").select("id, name, description, price, image_url, is_available, category, stock_quantity").eq("vendor_id", vendorId).order("name"),
+      loadMenu(supabase, vendorId),
     ])
     const firstError = vendor.error ?? orders.error ?? menu.error
     if (firstError) return fail(EMPTY_VENDOR, firstError, "vendor workspace query failed")
@@ -285,25 +305,45 @@ export type MenuItemInput = {
   price: number
   category: string | null
   image_url: string | null
+  video_url: string | null
   stock_quantity: number | null
   is_available: boolean
 }
 
-function cleanMenuInput(input: MenuItemInput): MenuItemInput | { error: string } {
+/**
+ * Photos and videos must be files the vendor uploaded into their own folder
+ * (no pasted links). An item may keep the media it already had.
+ */
+function checkMedia(value: string | null | undefined, kind: "Photo" | "Video", vendorId: string, current: string | null): { url: string | null } | { error: string } {
+  const url = String(value ?? "").trim() || null
+  if (!url || url === current) return { url }
+  const prefix = vendorMediaPrefix(vendorId)
+  const rest = url.slice(prefix.length)
+  if (!url.startsWith(prefix) || rest.length === 0 || rest.length > 120 || !/^[\w.-]+$/.test(rest) || rest.includes("..")) {
+    return { error: `${kind} must be uploaded from your device.` }
+  }
+  return { url }
+}
+
+function cleanMenuInput(input: MenuItemInput, vendorId: string, current: { image_url: string | null; video_url: string | null }): MenuItemInput | { error: string } {
   const name = String(input.name ?? "").trim()
   if (name.length < 2 || name.length > 80) return { error: "Name must be 2–80 characters." }
   const price = Number(input.price)
   if (!Number.isFinite(price) || price < 0 || price > 1_000_000) return { error: "Enter a valid price." }
   const description = String(input.description ?? "").trim().slice(0, 300) || null
   const category = String(input.category ?? "").trim().slice(0, 40) || null
-  const image_url = String(input.image_url ?? "").trim() || null
-  if (image_url && !/^https:\/\/\S+$/i.test(image_url)) return { error: "Photo link must start with https://" }
+  const image = checkMedia(input.image_url, "Photo", vendorId, current.image_url)
+  if ("error" in image) return image
+  const video = checkMedia(input.video_url, "Video", vendorId, current.video_url)
+  if ("error" in video) return video
+  const image_url = image.url
+  const video_url = video.url
   let stock_quantity: number | null = null
   if (input.stock_quantity !== null && input.stock_quantity !== undefined && String(input.stock_quantity) !== "") {
     stock_quantity = Number(input.stock_quantity)
     if (!Number.isInteger(stock_quantity) || stock_quantity < 0) return { error: "Stock must be a whole number, 0 or more." }
   }
-  return { name, description, price: Math.round(price * 100) / 100, category, image_url, stock_quantity, is_available: Boolean(input.is_available) }
+  return { name, description, price: Math.round(price * 100) / 100, category, image_url, video_url, stock_quantity, is_available: Boolean(input.is_available) }
 }
 
 /** Vendors create or edit items on their own menu. RLS also limits this to their store. */
@@ -311,13 +351,28 @@ export async function vendorSaveMenuItem(itemId: string | null, input: MenuItemI
   const caller = await requireRole(["vendor"])
   if ("error" in caller) return { data: null, error: caller.error }
   if (!caller.vendorId) return { data: null, error: "Your account isn't linked to a store yet." }
-  const clean = cleanMenuInput(input)
-  if ("error" in clean) return { data: null, error: clean.error }
+  const vendorId = caller.vendorId
   try {
-    const query = itemId
-      ? caller.supabase.from("menu_items").update(clean).eq("id", itemId).eq("vendor_id", caller.vendorId)
-      : caller.supabase.from("menu_items").insert({ ...clean, vendor_id: caller.vendorId })
-    const { data, error } = await query.select("id").maybeSingle()
+    let current: { image_url: string | null; video_url: string | null } = { image_url: null, video_url: null }
+    if (itemId) {
+      const existing = await loadMenu(caller.supabase, vendorId)
+      if (existing.error) return fail(null, existing.error, "vendor load menu item failed")
+      const row = (existing.data ?? []).find((m) => m.id === itemId)
+      if (!row) return { data: null, error: "That item wasn't found on your menu." }
+      current = { image_url: row.image_url ?? null, video_url: row.video_url ?? null }
+    }
+    const clean = cleanMenuInput(input, vendorId, current)
+    if ("error" in clean) return { data: null, error: clean.error }
+    const write = (values: Partial<MenuItemInput>) => (itemId
+      ? caller.supabase.from("menu_items").update(values).eq("id", itemId).eq("vendor_id", vendorId)
+      : caller.supabase.from("menu_items").insert({ ...values, vendor_id: vendorId })
+    ).select("id").maybeSingle()
+    let { data, error } = await write(clean)
+    if (isMissingColumn(error)) {
+      if (clean.video_url) return { data: null, error: "Product videos aren't switched on yet. Save with a photo for now." }
+      const { video_url: _skip, ...withoutVideo } = clean
+      ;({ data, error } = await write(withoutVideo))
+    }
     if (error) return fail(null, error, "vendor save menu item failed")
     return data ? { data: null, error: null } : { data: null, error: "That item wasn't found on your menu." }
   } catch (error) {

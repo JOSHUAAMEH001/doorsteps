@@ -13,6 +13,7 @@ import {
   LayoutDashboard,
   MapPinned,
   Receipt,
+  Rocket,
   Settings,
   ShoppingBag,
   Store,
@@ -35,6 +36,7 @@ import { createClient } from "@/lib/supabase/client"
 import { ACTIVE_DELIVERY, ADMIN_TRANSITIONS, IN_PROGRESS, STATUS_META, type OrderStatus } from "@/lib/order-status"
 import { useApp } from "@/lib/store"
 import { DashboardShell, type NavItem, type ShellNotice } from "@/components/dashboard/shell"
+import { RecruitmentSection } from "@/components/dashboard/recruitment-section"
 import {
   AreaChart,
   Badge,
@@ -67,7 +69,7 @@ const FleetMap = dynamic(() => import("@/components/dashboard/fleet-map"), {
   loading: () => <div className="h-[360px] w-full animate-pulse rounded-xl bg-secondary" />,
 })
 
-type Section = "overview" | "orders" | "deliveries" | "riders" | "vendors" | "customers" | "payments" | "reports" | "support" | "audit" | "settings"
+type Section = "overview" | "orders" | "deliveries" | "riders" | "vendors" | "customers" | "payments" | "reports" | "signups" | "support" | "audit" | "settings"
 
 /** A rider counts as "live" if their phone shared a location in the last 2 minutes. */
 const LIVE_WINDOW_MS = 2 * 60_000
@@ -111,6 +113,7 @@ export function AdminDashboard() {
     { id: "customers", label: "Customers", icon: Users, group: "Network" },
     { id: "payments", label: "Payments", icon: CreditCard, group: "Finance" },
     { id: "reports", label: "Reports & analytics", icon: BarChart3, group: "Finance" },
+    { id: "signups", label: "Pre-launch sign-ups", icon: Rocket, group: "Admin" },
     { id: "support", label: "Support & complaints", icon: Headphones, group: "Admin" },
     { id: "audit", label: "Audit log", icon: FileClock, group: "Admin" },
     { id: "settings", label: "Settings", icon: Settings, group: "Admin" },
@@ -130,6 +133,7 @@ export function AdminDashboard() {
     customers: ["Customers", "Everyone who has ordered on DOORS."],
     payments: ["Payments", "Payment method, status and references for each order."],
     reports: ["Reports & analytics", "Trends from real order data."],
+    signups: ["Pre-launch sign-ups", "Waitlist, vendor and rider applications from /join."],
     support: ["Support & complaints", "Customer issues and resolutions."],
     audit: ["Audit log", "Who changed what, and when."],
     settings: ["Settings", "Platform configuration."],
@@ -148,6 +152,7 @@ export function AdminDashboard() {
           {section === "customers" ? <CustomersSection d={derived} now={now} /> : null}
           {section === "payments" ? <PaymentsSection d={derived} /> : null}
           {section === "reports" ? <ReportsSection d={derived} /> : null}
+          {section === "signups" ? <RecruitmentSection notify={(text, tone) => toasts.push(text, tone)} /> : null}
           {section === "support" ? <NeedsSetup audience="admin" title="Support tickets aren't stored yet" body="Customers currently reach support outside the app. Once the support_tickets table exists, complaints will appear here with status, assignee and the linked order." items={["Open / in progress / resolved queue", "Link each complaint to an order, customer, vendor or rider", "Admin replies and resolution notes"]} /> : null}
           {section === "audit" ? <NeedsSetup audience="admin" title="Audit logging isn't enabled yet" body="The migration adds an audit_logs table and a trigger on orders so every status change and rider assignment is recorded automatically, including who made it. Records are read-only, even for admins." items={["Order status changes with old → new values", "Rider assignments and reassignments", "Actor, role and timestamp for every change"]} /> : null}
           {section === "settings" ? <SettingsSection /> : null}

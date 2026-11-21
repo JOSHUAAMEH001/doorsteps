@@ -5,7 +5,10 @@ import useSWR from "swr"
 import {
   BarChart3,
   Bike,
+  Camera,
   CheckCircle2,
+  Film,
+  Loader2,
   ChefHat,
   Clock,
   ClipboardList,
@@ -36,6 +39,7 @@ import {
 } from "@/app/actions/dashboard"
 import { useApp } from "@/lib/store"
 import { CatalogImage } from "@/components/app/catalog-image"
+import { MAX_VIDEO_MB, MAX_VIDEO_SECONDS, uploadMenuMedia, type MediaKind } from "@/lib/menu-media"
 import { AdminPreviewBar, DashboardShell, type NavItem, type ShellNotice } from "@/components/dashboard/shell"
 import {
   ActionButton,
@@ -414,6 +418,11 @@ function MenuSection({ workspace, readOnly, onChanged, notify }: { workspace: Ve
                 <li key={item.id} className={`flex items-center gap-3 border-b border-border p-4 sm:odd:border-r ${item.is_available ? "" : "bg-secondary/40"}`}>
                   <div className={`relative size-14 shrink-0 overflow-hidden rounded-xl bg-secondary ${item.is_available ? "" : "opacity-50 grayscale"}`}>
                     <CatalogImage name={item.name} imageUrl={item.image_url} sizes="56px" />
+                    {item.video_url ? (
+                      <span className="absolute bottom-0.5 right-0.5 flex size-5 items-center justify-center rounded-md bg-black/70 text-white" title="Has video">
+                        <Film aria-label="Has video" className="size-3" />
+                      </span>
+                    ) : null}
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-bold text-foreground">{item.name}</p>
@@ -455,6 +464,7 @@ function MenuSection({ workspace, readOnly, onChanged, notify }: { workspace: Ve
       {editing ? (
         <MenuItemEditor
           item={editing === "new" ? null : editing}
+          vendorId={workspace.vendor?.id ?? null}
           categories={categories}
           onClose={() => setEditing(null)}
           onSaved={async (message) => { notify(message); setEditing(null); await onChanged() }}
@@ -465,17 +475,29 @@ function MenuSection({ workspace, readOnly, onChanged, notify }: { workspace: Ve
   )
 }
 
-function MenuItemEditor({ item, categories, onClose, onSaved, onError }: { item: VendorMenuItem | null; categories: string[]; onClose: () => void; onSaved: (message: string) => Promise<void>; onError: (message: string) => void }) {
+function MenuItemEditor({ item, vendorId, categories, onClose, onSaved, onError }: { item: VendorMenuItem | null; vendorId: string | null; categories: string[]; onClose: () => void; onSaved: (message: string) => Promise<void>; onError: (message: string) => void }) {
   const [form, setForm] = useState({
     name: item?.name ?? "",
     description: item?.description ?? "",
     price: item ? String(item.price) : "",
     category: item?.category ?? "",
     image_url: item?.image_url ?? "",
+    video_url: item?.video_url ?? "",
     stock_quantity: item?.stock_quantity !== null && item?.stock_quantity !== undefined ? String(item.stock_quantity) : "",
     is_available: item?.is_available ?? true,
   })
   const [busy, setBusy] = useState(false)
+  const [uploading, setUploading] = useState<MediaKind | null>(null)
+
+  async function pick(kind: MediaKind, file: File | undefined) {
+    if (!file) return
+    if (!vendorId) { onError("Your account isn't linked to a store yet."); return }
+    setUploading(kind)
+    const result = await uploadMenuMedia(file, kind, vendorId)
+    setUploading(null)
+    if ("error" in result) onError(result.error)
+    else setForm((f) => ({ ...f, [kind === "photo" ? "image_url" : "video_url"]: result.url }))
+  }
   const set = (key: keyof typeof form) => (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setForm((f) => ({ ...f, [key]: e.target.value }))
 
   useEffect(() => {
@@ -493,6 +515,7 @@ function MenuItemEditor({ item, categories, onClose, onSaved, onError }: { item:
       price: Number(form.price),
       category: form.category || null,
       image_url: form.image_url || null,
+      video_url: form.video_url || null,
       stock_quantity: form.stock_quantity === "" ? null : Number(form.stock_quantity),
       is_available: form.is_available,
     }
@@ -528,7 +551,27 @@ function MenuItemEditor({ item, categories, onClose, onSaved, onError }: { item:
           </div>
           <label className={labelClass}>Category<input list="menu-categories" maxLength={40} value={form.category} onChange={set("category")} className={inputClass} /></label>
           <datalist id="menu-categories">{categories.map((c) => <option key={c} value={c} />)}</datalist>
-          <label className={labelClass}>Photo link (optional)<input type="url" inputMode="url" placeholder="https://…" value={form.image_url} onChange={set("image_url")} className={inputClass} /></label>
+          <div className="grid grid-cols-2 gap-3">
+            <MediaPicker
+              kind="photo"
+              name={form.name || "New item"}
+              url={form.image_url}
+              uploading={uploading === "photo"}
+              disabled={uploading !== null}
+              onPick={(file) => void pick("photo", file)}
+              onRemove={() => setForm((f) => ({ ...f, image_url: "" }))}
+            />
+            <MediaPicker
+              kind="video"
+              name={form.name || "New item"}
+              url={form.video_url}
+              uploading={uploading === "video"}
+              disabled={uploading !== null}
+              onPick={(file) => void pick("video", file)}
+              onRemove={() => setForm((f) => ({ ...f, video_url: "" }))}
+            />
+          </div>
+          <p className="-mt-1 text-[11px] text-muted-foreground">Take a photo or pick one from your gallery. Videos: up to {MAX_VIDEO_SECONDS} seconds, {MAX_VIDEO_MB} MB.</p>
           <label className="flex items-center gap-2.5 text-sm font-semibold text-foreground">
             <input type="checkbox" checked={form.is_available} onChange={(e) => setForm((f) => ({ ...f, is_available: e.target.checked }))} className="size-4 accent-[var(--brand)]" />
             Available to order
@@ -536,9 +579,56 @@ function MenuItemEditor({ item, categories, onClose, onSaved, onError }: { item:
         </div>
         <div className="mt-5 flex gap-2">
           <ActionButton variant="secondary" onClick={onClose} className="flex-1">Cancel</ActionButton>
-          <ActionButton type="submit" busy={busy} className="flex-1">{item ? "Save changes" : "Add to menu"}</ActionButton>
+          <ActionButton type="submit" busy={busy} disabled={uploading !== null} className="flex-1">{uploading ? "Uploading…" : item ? "Save changes" : "Add to menu"}</ActionButton>
         </div>
       </form>
+    </div>
+  )
+}
+
+/** Tap-to-upload tile. On phones the picker offers the camera or the gallery. */
+function MediaPicker({ kind, name, url, uploading, disabled, onPick, onRemove }: { kind: MediaKind; name: string; url: string; uploading: boolean; disabled: boolean; onPick: (file: File | undefined) => void; onRemove: () => void }) {
+  const inputRef = useRef<HTMLInputElement>(null)
+  const label = kind === "photo" ? "Photo" : "Video (optional)"
+  const Icon = kind === "photo" ? Camera : Film
+  return (
+    <div>
+      <p className="mb-1 text-xs font-semibold text-muted-foreground">{label}</p>
+      <div className="relative aspect-square overflow-hidden rounded-xl border border-dashed border-border bg-secondary">
+        {url ? (
+          kind === "photo"
+            ? <CatalogImage name={name} imageUrl={url} sizes="200px" />
+            : <video src={url} controls playsInline preload="metadata" className="absolute inset-0 size-full bg-black object-contain" />
+        ) : (
+          <button
+            type="button"
+            disabled={disabled}
+            onClick={() => inputRef.current?.click()}
+            className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 text-muted-foreground transition-colors hover:bg-secondary/60 hover:text-brand disabled:opacity-60"
+          >
+            {uploading ? <Loader2 aria-hidden="true" className="size-6 animate-spin" /> : <Icon aria-hidden="true" className="size-6" />}
+            <span className="text-xs font-bold">{uploading ? "Uploading…" : kind === "photo" ? "Add photo" : "Add video"}</span>
+          </button>
+        )}
+        {url && uploading ? (
+          <div className="absolute inset-0 flex items-center justify-center bg-black/50 text-white"><Loader2 aria-label="Uploading" className="size-6 animate-spin" /></div>
+        ) : null}
+      </div>
+      {url ? (
+        <div className="mt-1.5 flex gap-3 text-xs font-bold">
+          <button type="button" disabled={disabled} onClick={() => inputRef.current?.click()} className="text-brand hover:underline disabled:opacity-50">Change</button>
+          <button type="button" disabled={disabled} onClick={onRemove} className="text-muted-foreground hover:underline disabled:opacity-50">Remove</button>
+        </div>
+      ) : null}
+      <input
+        ref={inputRef}
+        type="file"
+        accept={kind === "photo" ? "image/*" : "video/mp4,video/quicktime,video/webm,video/*"}
+        className="sr-only"
+        tabIndex={-1}
+        aria-label={kind === "photo" ? "Choose a photo" : "Choose a video"}
+        onChange={(e) => { onPick(e.target.files?.[0]); e.target.value = "" }}
+      />
     </div>
   )
 }

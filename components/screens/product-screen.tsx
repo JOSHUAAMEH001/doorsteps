@@ -23,6 +23,7 @@ export function ProductScreen() {
     image: row.image_url ?? "",
     group: "Menu",
   } : null
+  const videoUrl = row?.video_url ?? null
   const [qty, setQty] = useState(1)
   const [note, setNote] = useState("")
 
@@ -47,6 +48,18 @@ export function ProductScreen() {
         {/* Image */}
         <div className="relative h-72 w-full bg-secondary">
           <CatalogImage name={product.name} imageUrl={product.image} sizes="(min-width: 1024px) 720px, 100vw" priority fallbackClassName="text-2xl" />
+          {videoUrl ? (
+            <video
+              src={videoUrl}
+              poster={product.image || undefined}
+              controls
+              playsInline
+              muted
+              preload="metadata"
+              aria-label={`${product.name} video`}
+              className="absolute inset-0 size-full bg-black object-contain"
+            />
+          ) : null}
           <button
             type="button"
             onClick={back}
