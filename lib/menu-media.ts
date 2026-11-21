@@ -16,7 +16,7 @@ const PHOTO_TYPES: Record<string, string> = { "image/jpeg": "jpg", "image/png": 
 export type MediaKind = "photo" | "video"
 
 /** Shrinks a phone photo to at most 1600px on its longest side, saved as JPEG. Returns null if the browser can't read it. */
-async function compressPhoto(file: File): Promise<Blob | null> {
+export async function compressPhoto(file: File): Promise<Blob | null> {
   if (file.type === "image/gif") return null // keep animation
   try {
     const bitmap = await createImageBitmap(file)
