@@ -89,7 +89,10 @@ function useForwardAuthLinks() {
     const hash = new URLSearchParams(url.hash.replace(/^#/, ""))
     const code = url.searchParams.get("code")
     const isRecovery = hash.get("type") === "recovery" || url.searchParams.get("type") === "recovery"
-    if (isRecovery || ((code || hash.get("error_code")) && hasPendingRecovery())) {
+    // Error params on "/" only ever come from Supabase email links (expired / already used).
+    // Send them to a page that explains it, instead of silently showing the splash screen.
+    const linkError = Boolean(url.searchParams.get("error_code") || hash.get("error_code"))
+    if (isRecovery || linkError || (code && hasPendingRecovery())) {
       window.location.replace(`/reset-password${url.search}${url.hash}`)
     } else if (code) {
       window.location.replace(`/auth/callback?code=${encodeURIComponent(code)}`)

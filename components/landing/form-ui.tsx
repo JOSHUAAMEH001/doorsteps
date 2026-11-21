@@ -162,15 +162,6 @@ export function FormAlert({ message }: { message: string | null }) {
   )
 }
 
-/** Hidden honeypot: real people never see or fill it. */
-export function Trap({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-  return (
-    <div aria-hidden="true" className="absolute -left-[9999px] h-px w-px overflow-hidden">
-      <label>Company website<input tabIndex={-1} autoComplete="off" value={value} onChange={(e) => onChange(e.target.value)} name="company_website" /></label>
-    </div>
-  )
-}
-
 /** Full-screen sheet on phones, large dialog on desktop. Locks page scroll; Esc closes. */
 export function Sheet({ open, onClose, label, children, wide = false }: { open: boolean; onClose: () => void; label: string; children: ReactNode; wide?: boolean }) {
   const panel = useRef<HTMLDivElement>(null)

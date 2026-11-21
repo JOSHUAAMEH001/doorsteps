@@ -4,7 +4,7 @@ import { useRef, useState, type FormEvent } from "react"
 import { LoaderCircle } from "lucide-react"
 import { Logo } from "@/components/brand/logo"
 import { PrimaryButton } from "@/components/app/ui"
-import { createClient } from "@/lib/supabase/client"
+import { createClient as createSupabaseClient } from "@supabase/supabase-js"
 import { RECOVERY_FLAG } from "@/lib/auth-recovery"
 
 const confirmation = "If that email exists, a reset link has been sent. Check your inbox and spam folder."
@@ -28,7 +28,13 @@ export function ForgotPasswordForm({ initialEmail }: { initialEmail: string }) {
     setSent(false)
 
     try {
-      const { error } = await createClient().auth.resetPasswordForEmail(email.trim(), {
+      // Implicit flow on purpose: the link then carries its own one-time session, so it works
+      // on ANY device or browser (e.g. opened from the Gmail app on a phone). The default PKCE
+      // flow only works in the exact browser that requested the email.
+      const recovery = createSupabaseClient(process.env.NEXT_PUBLIC_APP_SUPABASE_URL!, process.env.NEXT_PUBLIC_APP_SUPABASE_PUBLISHABLE_KEY!, {
+        auth: { flowType: "implicit", persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+      })
+      const { error } = await recovery.auth.resetPasswordForEmail(email.trim(), {
         redirectTo: `${window.location.origin}/reset-password`,
       })
       // If Supabase falls back to the Site URL (redirect URL not allow-listed), the home page

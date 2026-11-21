@@ -20,7 +20,7 @@ export type VendorApplication = {
 }
 export type RiderApplication = {
   id: string; created_at: string; full_name: string; phone: string; whatsapp: string | null; email: string | null; residential_area: string
-  vehicle_type: string; vehicle_access: string; availability: string; experience: string | null; emergency_name: string
+  vehicle_type: string; vehicle_access: string | null; availability: string; experience: string | null; emergency_name: string
   emergency_phone: string; files_uploaded: number; status: string; admin_notes: string | null
 }
 export type RecruitmentData = { waitlist: WaitlistSignup[]; vendors: VendorApplication[]; riders: RiderApplication[]; setupNeeded: boolean }

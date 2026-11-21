@@ -4,12 +4,11 @@ import { useEffect, useRef, useState, type FormEvent } from "react"
 import { ArrowLeft, ArrowRight, CheckCircle2, Lock } from "lucide-react"
 import { finalizeApplicationFiles, submitRiderApplication } from "@/app/actions/recruit"
 import { uploadApplicationFiles, type PendingFile } from "@/lib/recruit-upload"
-import { Check18, Chips, Field, FilePick, FormAlert, Sheet, SheetHeader, Stepper, SubmitButton, Trap, inputClass } from "@/components/landing/form-ui"
+import { Check18, Chips, Field, FilePick, FormAlert, Sheet, SheetHeader, Stepper, SubmitButton, inputClass } from "@/components/landing/form-ui"
 import { ShareDoors } from "@/components/landing/waitlist-form"
 
 const STEPS = ["About you", "Vehicle", "Safety & documents"]
-type Vehicle = "bicycle" | "motorcycle" | "tricycle" | "other"
-type Access = "own" | "access" | "none"
+type Vehicle = "bicycle" | "motorcycle" | "other"
 type Avail = "Full-time" | "Part-time" | "Evenings" | "Weekends"
 
 const PHONE = /^(0|\+?234)?[789][01]\d{8}$/
@@ -24,13 +23,11 @@ export function RiderFlow({ open, onClose }: { open: boolean; onClose: () => voi
 }
 
 function RiderFlowBody({ onClose }: { onClose: () => void }) {
-  const started = useRef(Date.now())
   const scroller = useRef<HTMLDivElement>(null)
   const [step, setStep] = useState(0)
-  const [trap, setTrap] = useState("")
   const [f, setF] = useState({
     full_name: "", phone: "", whatsapp: "", email: "", residential_area: "", is_adult: false,
-    vehicle_type: "" as Vehicle | "", vehicle_access: "" as Access | "", availability: "" as Avail | "", experience: "",
+    vehicle_type: "" as Vehicle | "", availability: "" as Avail | "", experience: "",
     emergency_name: "", emergency_phone: "", consent: false,
   })
   const [idDoc, setIdDoc] = useState<File | null>(null)
@@ -41,7 +38,7 @@ function RiderFlowBody({ onClose }: { onClose: () => void }) {
   const [busy, setBusy] = useState(false)
   const [progress, setProgress] = useState<string | null>(null)
   const [done, setDone] = useState<null | { duplicate: boolean; failed: number }>(null)
-  const motorised = f.vehicle_type === "motorcycle" || f.vehicle_type === "tricycle"
+  const motorised = f.vehicle_type === "motorcycle"
 
   const set = (k: keyof typeof f) => (e: { target: { value: string } }) => setF((s) => ({ ...s, [k]: e.target.value }))
   useEffect(() => { scroller.current?.scrollTo({ top: 0, behavior: "smooth" }) }, [step])
@@ -58,7 +55,6 @@ function RiderFlowBody({ onClose }: { onClose: () => void }) {
     }
     if (s === 1) {
       if (!f.vehicle_type) e.vehicle_type = "Choose your vehicle type."
-      if (!f.vehicle_access) e.vehicle_access = "Choose one."
       if (!f.availability) e.availability = "Choose when you can work."
     }
     if (s === 2) {
@@ -78,13 +74,13 @@ function RiderFlowBody({ onClose }: { onClose: () => void }) {
     if (busy || !validate(2)) return
     setBusy(true)
     try {
-      const res = await submitRiderApplication({ ...f }, { startedAt: started.current, trap })
+      const res = await submitRiderApplication({ ...f })
       if (!res.ok) {
         if (res.field) {
           setErrors({ [res.field]: res.error ?? "Check this field." })
-          setStep(["full_name", "phone", "whatsapp", "email", "residential_area", "is_adult"].includes(res.field) ? 0 : ["vehicle_type", "vehicle_access", "availability"].includes(res.field) ? 1 : 2)
+          setStep(["full_name", "phone", "whatsapp", "email", "residential_area", "is_adult"].includes(res.field) ? 0 : ["vehicle_type", "availability"].includes(res.field) ? 1 : 2)
         }
-        setAlert(res.error ?? "Something went wrong. Please try again.")
+        setAlert(res.error ?? "We couldn't save your application. Please try again.")
         return
       }
       let failed = 0
@@ -133,7 +129,6 @@ function RiderFlowBody({ onClose }: { onClose: () => void }) {
       <SheetHeader title="Apply as a rider" subtitle="About 2 minutes" onClose={onClose}><Stepper steps={STEPS} current={step} /></SheetHeader>
       <div ref={scroller} className="min-h-0 flex-1 overflow-y-auto px-5 py-6 sm:px-7">
         <form id="rider-form" onSubmit={(e) => void submit(e)} noValidate className="relative flex flex-col gap-5">
-          <Trap value={trap} onChange={setTrap} />
           {step === 0 ? (
             <>
               <Field label="Full name" error={errors.full_name}><input value={f.full_name} onChange={set("full_name")} autoComplete="name" aria-invalid={Boolean(errors.full_name)} className={inputClass} autoFocus /></Field>
@@ -142,16 +137,14 @@ function RiderFlowBody({ onClose }: { onClose: () => void }) {
                 <Field label="WhatsApp number" optional error={errors.whatsapp}><input type="tel" inputMode="tel" value={f.whatsapp} onChange={set("whatsapp")} placeholder="If different" className={inputClass} /></Field>
               </div>
               <Field label="Email address" optional error={errors.email}><input type="email" inputMode="email" autoComplete="email" value={f.email} onChange={set("email")} className={inputClass} /></Field>
-              <Field label="Where do you live?" error={errors.residential_area}><input value={f.residential_area} onChange={set("residential_area")} maxLength={120} aria-invalid={Boolean(errors.residential_area)} placeholder="e.g. Agbani town, near the market" className={inputClass} /></Field>
+              <Field label="Where do you live?" error={errors.residential_area}><input value={f.residential_area} onChange={set("residential_area")} maxLength={120} aria-invalid={Boolean(errors.residential_area)} placeholder="Your area or street" className={inputClass} /></Field>
               <Check18 checked={f.is_adult} onChange={(v) => setF((s) => ({ ...s, is_adult: v }))} error={errors.is_adult}>I confirm I am <strong>18 years or older</strong>.</Check18>
             </>
           ) : null}
           {step === 1 ? (
             <>
               <Chips<Vehicle> label="Vehicle type" value={f.vehicle_type} onChange={(v) => setF((s) => ({ ...s, vehicle_type: v }))} error={errors.vehicle_type}
-                options={[{ value: "bicycle", label: "🚲 Bicycle" }, { value: "motorcycle", label: "🏍️ Motorcycle" }, { value: "tricycle", label: "🛺 Tricycle (Keke)" }, { value: "other", label: "Other" }]} />
-              <Chips<Access> label="Do you have the vehicle?" value={f.vehicle_access} onChange={(v) => setF((s) => ({ ...s, vehicle_access: v }))} error={errors.vehicle_access}
-                options={[{ value: "own", label: "I own it" }, { value: "access", label: "I can use one" }, { value: "none", label: "Not yet" }]} />
+                options={[{ value: "bicycle", label: "🚲 Bicycle" }, { value: "motorcycle", label: "🏍️ Motorcycle" }, { value: "other", label: "Other" }]} />
               <Chips<Avail> label="When can you deliver?" value={f.availability} onChange={(v) => setF((s) => ({ ...s, availability: v }))} error={errors.availability}
                 options={[{ value: "Full-time", label: "Full-time" }, { value: "Part-time", label: "Part-time" }, { value: "Evenings", label: "Evenings" }, { value: "Weekends", label: "Weekends" }]} />
               <Field label="Delivery experience" optional hint="e.g. 1 year with a dispatch company, or none — that's fine.">

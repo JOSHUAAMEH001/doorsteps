@@ -711,7 +711,7 @@ function RiderSection({ onApply, paused }: { onApply: () => void; paused: boolea
           </ul>
           <div data-reveal className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
             <Cta onClick={onApply}>Apply as a rider</Cta>
-            <p className="text-sm text-[#737373]">18+ · Bicycle, motorcycle or keke</p>
+            <p className="text-sm text-[#737373]">18+ · Bicycle or motorcycle</p>
           </div>
         </div>
       </div>
@@ -821,7 +821,7 @@ function Faq() {
     ["Where does DOORS deliver?", "We're starting with ESUT and the surrounding Agbani community, and will grow from there."],
     ["What can I order?", "Food from local restaurants and food vendors, and groceries from local supermarkets and stores. We also offer a waybill service for parcels."],
     ["Does my business need to be CAC registered?", "No. Small and informal food vendors are welcome to apply. Tell us your registration status in the form and we'll guide you."],
-    ["What do I need to become a rider?", "You must be 18 or older, with access to a bicycle, motorcycle or keke. Shortlisted applicants are invited to a short screening."],
+    ["What do I need to become a rider?", "You must be 18 or older, with a bicycle or motorcycle. Shortlisted applicants are invited to a short screening."],
     ["How is my information used?", "Only to process your sign-up or application and to contact you about DOORS. Rider documents are stored privately and seen only by the DOORS admin team."],
   ]
   return (
