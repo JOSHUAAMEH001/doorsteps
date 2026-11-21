@@ -12,7 +12,7 @@ export async function getCustomerOrderForTracking(orderCode: string) {
 
   const { data: order, error } = await supabase
     .from("orders")
-    .select("order_code, rider_id, status")
+    .select("order_code, rider_id, status, total, created_at, vendors(name), order_items(item_name, unit_price, quantity)")
     .eq("user_id", user.id)
     .eq("order_code", normalizedOrderCode)
     .maybeSingle()
@@ -30,12 +30,20 @@ export async function getCustomerOrderForTracking(orderCode: string) {
     riderName = rider?.full_name?.trim() || null
   }
 
+  const vendorName = Array.isArray(order.vendors)
+    ? (order.vendors[0] as { name: string } | undefined)?.name ?? null
+    : (order.vendors as { name: string } | null)?.name ?? null
+
   return {
     data: {
       orderCode: order.order_code,
       riderId: order.rider_id,
       status: order.status,
       riderName: riderName ?? "Your rider",
+      vendorName,
+      total: order.total,
+      items: (order.order_items ?? []).map((i: { item_name: string; quantity: number }) => `${i.quantity}× ${i.item_name}`),
+      createdAt: order.created_at,
     },
     error: null,
   }

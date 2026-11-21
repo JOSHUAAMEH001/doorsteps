@@ -28,7 +28,7 @@ export interface OrderItem {
   price: number
 }
 
-export type OrderStatus = "preparing" | "assigned" | "picked_up" | "on_the_way" | "delivered" | "cancelled"
+export type OrderStatus = "pending" | "confirmed" | "assigned" | "picked_up" | "delivered" | "cancelled"
 
 export interface Order {
   id: string
@@ -62,9 +62,9 @@ export const categories: { id: CategoryId; label: string; description: string }[
   { id: "waybill", label: "Waybill", description: "No vendors yet" },
 ]
 
-export const orderStatusSteps: { key: OrderStatus | "confirmed"; label: string; desc: string }[] = [
-  { key: "confirmed", label: "Order confirmed", desc: "Vendor accepted your order" },
-  { key: "preparing", label: "Preparing your order", desc: "Your order is being packed" },
-  { key: "on_the_way", label: "Rider on the way", desc: "Your order is on the way" },
-  { key: "delivered", label: "Delivered", desc: "Order delivered" },
+export const orderStatusSteps: { key: OrderStatus; label: string; desc: string }[] = [
+  { key: "confirmed", label: "Order accepted", desc: "Vendor accepted your order" },
+  { key: "assigned", label: "Rider assigned", desc: "A rider is heading to pick up" },
+  { key: "picked_up", label: "On the way", desc: "Your order is on the way to you" },
+  { key: "delivered", label: "Delivered", desc: "Your order has arrived" },
 ]
