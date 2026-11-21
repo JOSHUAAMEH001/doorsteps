@@ -1,6 +1,7 @@
 -- =============================================================================
 -- DOORS pre-launch recruitment: customer waitlist, vendor & rider applications
 -- -----------------------------------------------------------------------------
+-- STATUS: APPLIED to production on 2026-11-21 as "recruitment_forms".
 -- Additive only: new tables, new functions, one new PRIVATE storage bucket.
 -- Nothing existing is changed or dropped.
 --

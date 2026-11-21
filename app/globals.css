@@ -182,3 +182,6 @@
   from { width: 0%; }
   to { width: 100%; }
 }
+/* "Pause animations" on /join also stops the small CSS loops (pulsing dots). */
+[data-motion="paused"] .animate-ping,
+[data-motion="paused"] .animate-pulse { animation: none; }

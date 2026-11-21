@@ -5,14 +5,21 @@ import Link from "next/link"
 import { gsap } from "gsap"
 import { ScrollTrigger } from "gsap/ScrollTrigger"
 import {
-  ArrowRight, Bike, Check, ChevronDown, Clock, MapPin, Menu, Package, ShoppingBasket, Sparkles, Store, UtensilsCrossed, Users, X,
+  ArrowRight, Bike, Check, ChevronDown, Clock, MapPin, Menu, Package, Phone, ShoppingBasket, Sparkles, Store, UtensilsCrossed, Users, X,
 } from "lucide-react"
 import { BrandLogo } from "@/components/brand/logo"
 import { RiderIllustration } from "@/components/landing/rider-illustration"
 import { WaitlistForm } from "@/components/landing/waitlist-form"
 import { StorefrontPreview, VendorFlow } from "@/components/landing/vendor-flow"
 import { RiderFlow } from "@/components/landing/rider-flow"
+import { MotionToggle } from "@/components/landing/motion-toggle"
 import { cn } from "@/lib/utils"
+
+/** Verified DOORS contact numbers (provided by the DOORS team). */
+export const CONTACT_PHONES = [
+  { label: "0701 803 8264", tel: "+2347018038264" },
+  { label: "0704 408 9677", tel: "+2347044089677" },
+]
 
 const LAUNCH = new Date("2026-12-06T00:00:00+01:00").getTime()
 type Flow = "vendor" | "rider" | null
@@ -77,6 +84,37 @@ export function LandingPage() {
   const root = useRef<HTMLDivElement>(null)
   const [flow, setFlow] = useState<Flow>(null)
   const [vendorName, setVendorName] = useState("")
+  const [paused, setPaused] = useState(false)
+  const pausedRef = useRef(false)
+  const [hint, setHint] = useState(false)
+  const [motionAllowed, setMotionAllowed] = useState(false)
+
+  // Remember the visitor's pause choice on this device; hide the control if their
+  // device already has "reduce motion" on (nothing animates then).
+  useEffect(() => {
+    const mq = window.matchMedia("(prefers-reduced-motion: no-preference)")
+    const sync = () => setMotionAllowed(mq.matches)
+    sync()
+    mq.addEventListener("change", sync)
+    try { if (localStorage.getItem("doors-motion") === "paused") setPaused(true) } catch { /* storage unavailable */ }
+    return () => mq.removeEventListener("change", sync)
+  }, [])
+
+  useEffect(() => {
+    pausedRef.current = paused
+    try { localStorage.setItem("doors-motion", paused ? "paused" : "on") } catch { /* storage unavailable */ }
+    if (paused) {
+      // Finish one-off intros/reveals so nothing is left half-hidden, then freeze everything.
+      gsap.globalTimeline.getChildren(true, true, false).forEach((t) => { if (t.repeat() === 0) t.progress(1) })
+      root.current?.querySelectorAll<HTMLElement | SVGElement>("[data-reveal], [data-hero-line], [data-hero-fade], .hero-art, .community-node").forEach((el) => {
+        el.style.opacity = "1"
+        el.style.transform = ""
+      })
+      gsap.globalTimeline.pause()
+    } else {
+      gsap.globalTimeline.resume()
+    }
+  }, [paused])
 
   const open = useCallback((f: Exclude<Flow, null>) => {
     setFlow(f)
@@ -145,6 +183,7 @@ export function LandingPage() {
       const rx = gsap.quickTo(art, "rotationY", { duration: 0.8, ease: "power3.out" })
       const ry = gsap.quickTo(art, "rotationX", { duration: 0.8, ease: "power3.out" })
       move = (e) => {
+        if (pausedRef.current) return
         const r = hero.getBoundingClientRect()
         rx(((e.clientX - r.left) / r.width - 0.5) * 8)
         ry(-((e.clientY - r.top) / r.height - 0.5) * 6)
@@ -158,16 +197,23 @@ export function LandingPage() {
   }, [])
 
   return (
-    <div ref={root} className="min-h-dvh overflow-x-clip bg-white font-sans text-[#171717] selection:bg-[#D71920] selection:text-white">
+    <div
+      ref={root}
+      data-motion={paused ? "paused" : "on"}
+      onPointerOver={(e) => setHint(Boolean((e.target as Element).closest?.("[data-animated]")))}
+      onPointerLeave={() => setHint(false)}
+      className="min-h-dvh overflow-x-clip bg-white font-sans text-[#171717] selection:bg-[#D71920] selection:text-white"
+    >
+      {motionAllowed ? <MotionToggle paused={paused} onToggle={() => setPaused((p) => !p)} highlight={hint} /> : null}
       <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[90] focus:rounded-xl focus:bg-white focus:px-4 focus:py-2 focus:font-bold">Skip to content</a>
       <Nav onWaitlist={toWaitlist} onVendor={() => open("vendor")} onRider={() => open("rider")} />
       <main id="main">
         <Hero onWaitlist={toWaitlist} onVendor={() => open("vendor")} onRider={() => open("rider")} />
         <Marquee />
         <Experience />
-        <HowItWorks />
+        <HowItWorks paused={paused} />
         <VendorSection name={vendorName} setName={setVendorName} onApply={() => open("vendor")} />
-        <RiderSection onApply={() => open("rider")} />
+        <RiderSection onApply={() => open("rider")} paused={paused} />
         <Community />
         <Waitlist />
         <Faq />
@@ -282,7 +328,7 @@ function Hero({ onWaitlist, onVendor, onRider }: { onWaitlist: () => void; onVen
         </div>
 
         <div className="relative [perspective:1200px]">
-          <div className="hero-art relative mx-auto w-full max-w-[620px] [transform-style:preserve-3d]">
+          <div data-animated className="hero-art relative mx-auto w-full max-w-[620px] [transform-style:preserve-3d]">
             <RiderIllustration className="h-auto w-full drop-shadow-[0_30px_40px_rgb(215_25_32/0.12)]" />
             <div className="hero-chip absolute bottom-[2%] left-[2%] hidden rounded-2xl bg-white p-3 shadow-[0_18px_40px_-18px_rgb(23_23_23/0.35)] sm:block">
               <Chrome tone="light" />
@@ -309,7 +355,7 @@ function Marquee() {
     </div>
   )
   return (
-    <div className="overflow-hidden bg-[#171717] py-5" role="presentation">
+    <div data-animated className="overflow-hidden bg-[#171717] py-5" role="presentation">
       <div className="marquee-track flex w-max">{row("a")}{row("b")}</div>
     </div>
   )
@@ -398,7 +444,7 @@ const STEPS_HOW = [
   { title: "Get it delivered", body: "A DOORS rider brings it to your door.", icon: Bike },
 ]
 
-function HowItWorks() {
+function HowItWorks({ paused }: { paused: boolean }) {
   const [step, setStep] = useState(0)
   const [auto, setAuto] = useState(true)
   const section = useRef<HTMLElement>(null)
@@ -411,10 +457,10 @@ function HowItWorks() {
     return () => io.disconnect()
   }, [])
   useEffect(() => {
-    if (!auto || !visible) return
+    if (!auto || !visible || paused) return
     const t = setInterval(() => setStep((s) => (s + 1) % STEPS_HOW.length), 3200)
     return () => clearInterval(t)
-  }, [auto, visible])
+  }, [auto, visible, paused])
 
   return (
     <section ref={section} id="how-it-works" aria-labelledby="how-title" className="bg-[#F7F7F7] py-20 sm:py-28">
@@ -441,14 +487,14 @@ function HowItWorks() {
                       <span className="block font-display text-lg font-extrabold tracking-tight">{s.title}</span>
                       <span className={cn("block text-sm text-[#6B6B6B] transition-all", on ? "max-h-10 opacity-100" : "max-h-0 opacity-0 sm:max-h-10 sm:opacity-100")}>{s.body}</span>
                     </span>
-                    {on && auto && visible ? <span key={step} aria-hidden="true" className="absolute bottom-0 left-0 h-1 bg-[#D71920] [animation:landing-progress_3.2s_linear_forwards]" /> : null}
+                    {on && auto && visible && !paused ? <span key={step} aria-hidden="true" className="absolute bottom-0 left-0 h-1 bg-[#D71920] [animation:landing-progress_3.2s_linear_forwards]" /> : null}
                   </button>
                 </li>
               )
             })}
           </ol>
         </div>
-        <div data-reveal className="flex justify-center">
+        <div data-reveal data-animated className="flex justify-center">
           <PhoneDemo step={step} />
         </div>
       </div>
@@ -596,7 +642,7 @@ function VendorSection({ name, setName, onApply }: { name: string; setName: (v: 
 
 /* ---------------------------------------------------------------- riders --- */
 
-function RiderSection({ onApply }: { onApply: () => void }) {
+function RiderSection({ onApply, paused }: { onApply: () => void; paused: boolean }) {
   const [p, setP] = useState(0)
   const path = useRef<SVGPathElement>(null)
   const [pt, setPt] = useState({ x: 40, y: 190 })
@@ -608,6 +654,7 @@ function RiderSection({ onApply }: { onApply: () => void }) {
     setPt({ x: q.x, y: q.y })
   }, [p])
   function demoRun() {
+    if (paused) { setP(100); return }
     const o = { v: 0 }
     gsap.to(o, { v: 100, duration: 2.4, ease: "power2.inOut", onUpdate: () => setP(Math.round(o.v)) })
   }
@@ -622,7 +669,7 @@ function RiderSection({ onApply }: { onApply: () => void }) {
     <section id="riders" aria-labelledby="rider-title" className="bg-white py-20 sm:py-28">
       <div className="mx-auto grid max-w-7xl items-center gap-14 px-4 sm:px-6 lg:grid-cols-2">
         <div data-reveal className="order-2 lg:order-1">
-          <div className="rounded-[32px] border border-[#EDEDED] bg-[#F7F7F7] p-5 sm:p-6">
+          <div data-animated className="rounded-[32px] border border-[#EDEDED] bg-[#F7F7F7] p-5 sm:p-6">
             <div className="flex items-center justify-between">
               <Chrome tone="red" label="Delivery run" />
               <span className="rounded-full bg-white px-3 py-1 text-xs font-extrabold" aria-live="polite">{stage}</span>
@@ -701,7 +748,7 @@ function Community() {
           <p data-reveal className="mt-3 text-sm text-white/60">Tap a part of the network to explore it.</p>
         </div>
         <div data-reveal>
-          <svg viewBox="0 0 600 400" className="w-full" role="group" aria-label="The DOORS community network">
+          <svg data-animated viewBox="0 0 600 400" className="w-full" role="group" aria-label="The DOORS community network">
             <rect x="20" y="20" width="250" height="160" rx="40" fill="#fff" opacity="0.07" />
             <text x="44" y="166" fontSize="14" fontWeight="800" fill="#fff" opacity="0.6" letterSpacing="2">ESUT CAMPUS</text>
             <rect x="330" y="220" width="250" height="160" rx="40" fill="#fff" opacity="0.07" />
@@ -833,7 +880,7 @@ function FinalCta({ onWaitlist, onVendor, onRider }: { onWaitlist: () => void; o
 function Footer() {
   return (
     <footer className="bg-[#171717] text-white">
-      <div className="mx-auto grid max-w-7xl gap-10 px-4 py-14 sm:px-6 md:grid-cols-[1.4fr_1fr_1fr]">
+      <div className="mx-auto grid max-w-7xl gap-10 px-4 py-14 sm:px-6 sm:grid-cols-2 lg:grid-cols-[1.4fr_1fr_1fr_1fr]">
         <div>
           <BrandLogo tone="white" className="h-8" />
           <p className="mt-4 max-w-sm text-sm leading-relaxed text-white/60">Doorsteps Logistics (DOORS) connects customers around ESUT and Agbani, Enugu State, to local food and grocery vendors, and delivers to their door.</p>
@@ -851,6 +898,14 @@ function Footer() {
             <li><a href="#apply-vendor" className="text-white/80 hover:text-white">Vendor registration</a></li>
             <li><a href="#apply-rider" className="text-white/80 hover:text-white">Rider application</a></li>
             <li><Link href="/privacy" className="text-white/80 hover:text-white">Privacy notice</Link></li>
+          </ul>
+        </div>
+        <div>
+          <p className="text-xs font-bold uppercase tracking-[0.18em] text-white/40">Contact us</p>
+          <ul className="mt-4 flex flex-col gap-2.5 text-sm font-semibold">
+            {CONTACT_PHONES.map((ph) => (
+              <li key={ph.tel}><a href={`tel:${ph.tel}`} className="inline-flex items-center gap-2 text-white/80 hover:text-white"><Phone aria-hidden="true" className="size-4 text-[#F04A50]" />{ph.label}</a></li>
+            ))}
           </ul>
         </div>
       </div>
