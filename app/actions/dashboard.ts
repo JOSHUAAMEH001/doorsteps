@@ -484,3 +484,37 @@ export async function getRiderWorkspace(previewRiderId?: string): Promise<Action
     return fail(EMPTY_RIDER, error, "rider workspace crashed")
   }
 }
+
+/**
+ * Admin confirms that a manual bank transfer for an order has arrived in the DOORS account.
+ * Only unpaid transfer orders can be confirmed; the amount recorded is the order total.
+ * (orders_guard lets admins change payment fields; RLS "admin updates orders" allows the write.)
+ */
+export async function adminConfirmTransferPayment(orderId: string): Promise<ActionResult> {
+  const caller = await requireRole(["admin"])
+  if ("error" in caller) return { data: null, error: caller.error }
+  try {
+    const { supabase } = caller
+    const { data: order, error: readError } = await supabase
+      .from("orders")
+      .select("id, total, payment_method, payment_status")
+      .eq("id", orderId)
+      .maybeSingle()
+    if (readError) return fail(null, readError, "confirm payment lookup failed")
+    if (!order) return { data: null, error: "Order not found." }
+    if (order.payment_method !== "transfer") return { data: null, error: "Only bank transfer orders can be confirmed here." }
+    if (order.payment_status === "paid") return { data: null, error: "This payment is already confirmed." }
+    const { data, error } = await supabase
+      .from("orders")
+      .update({ payment_status: "paid", paid_at: new Date().toISOString(), amount_paid: order.total })
+      .eq("id", orderId)
+      .eq("payment_method", "transfer")
+      .eq("payment_status", order.payment_status)
+      .select("id")
+      .maybeSingle()
+    if (error) return fail(null, error, "confirm payment failed")
+    return data ? { data: null, error: null } : { data: null, error: "This order changed. Refreshing…" }
+  } catch (error) {
+    return fail(null, error, "confirm payment crashed")
+  }
+}

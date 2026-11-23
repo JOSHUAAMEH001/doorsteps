@@ -26,6 +26,7 @@ import {
 } from "lucide-react"
 import {
   adminAssignRider,
+  adminConfirmTransferPayment,
   adminUpdateOrderStatus,
   getAdminWorkspace,
   type AdminOrder,
@@ -104,6 +105,14 @@ export function AdminDashboard() {
     await mutate()
   }
 
+  async function confirmTransfer(order: AdminOrder) {
+    if (!window.confirm(`Confirm that ${naira(order.total)} for ${order.order_code} has arrived in the DOORS Moniepoint account?`)) return
+    const result = await adminConfirmTransferPayment(order.id)
+    if (result.error) toasts.push(result.error, "error")
+    else toasts.push(`${order.order_code}: payment confirmed`)
+    await mutate()
+  }
+
   const nav: NavItem<Section>[] = [
     { id: "overview", label: "Dashboard", icon: LayoutDashboard },
     { id: "orders", label: "Orders", icon: ClipboardList, badge: derived.pending.length + derived.unassigned.length, group: "Operations" },
@@ -150,7 +159,7 @@ export function AdminDashboard() {
           {section === "riders" ? <RidersSection d={derived} now={now} /> : null}
           {section === "vendors" ? <VendorsSection d={derived} workspace={workspace} /> : null}
           {section === "customers" ? <CustomersSection d={derived} now={now} /> : null}
-          {section === "payments" ? <PaymentsSection d={derived} /> : null}
+          {section === "payments" ? <PaymentsSection d={derived} onConfirmTransfer={confirmTransfer} /> : null}
           {section === "reports" ? <ReportsSection d={derived} /> : null}
           {section === "signups" ? <RecruitmentSection notify={(text, tone) => toasts.push(text, tone)} /> : null}
           {section === "support" ? <NeedsSetup audience="admin" title="Support tickets aren't stored yet" body="Customers currently reach support outside the app. Once the support_tickets table exists, complaints will appear here with status, assignee and the linked order." items={["Open / in progress / resolved queue", "Link each complaint to an order, customer, vendor or rider", "Admin replies and resolution notes"]} /> : null}
@@ -647,7 +656,8 @@ function CustomersSection({ d, now }: { d: Derived; now: number }) {
  * Payments & reports
  * ------------------------------------------------------------------------- */
 
-function PaymentsSection({ d }: { d: Derived }) {
+function PaymentsSection({ d, onConfirmTransfer }: { d: Derived; onConfirmTransfer: (o: AdminOrder) => Promise<void> }) {
+  const [confirming, setConfirming] = useState<string | null>(null)
   const [method, setMethod] = useState<"all" | "cash" | "transfer" | "card">("all")
   const [query, setQuery] = useState("")
   const q = query.trim().toLowerCase()
@@ -669,8 +679,8 @@ function PaymentsSection({ d }: { d: Derived }) {
       <Panel bodyClassName="p-0">
         {rows.length === 0 ? <EmptyState icon={CreditCard} title="No transactions match" /> : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[820px] border-collapse text-left">
-              <thead><tr className="border-b border-border bg-secondary/60 text-[11px] font-bold uppercase tracking-wide text-muted-foreground"><th className="px-5 py-3">Order</th><th className="px-4 py-3">Customer</th><th className="px-4 py-3">Payment</th><th className="px-4 py-3">Amount</th><th className="px-4 py-3">Delivery fee</th><th className="px-4 py-3">Order status</th><th className="px-4 py-3">Reference</th></tr></thead>
+            <table className="w-full min-w-[940px] border-collapse text-left">
+              <thead><tr className="border-b border-border bg-secondary/60 text-[11px] font-bold uppercase tracking-wide text-muted-foreground"><th className="px-5 py-3">Order</th><th className="px-4 py-3">Customer</th><th className="px-4 py-3">Payment</th><th className="px-4 py-3">Amount</th><th className="px-4 py-3">Delivery fee</th><th className="px-4 py-3">Order status</th><th className="px-4 py-3">Reference</th><th className="px-4 py-3">Action</th></tr></thead>
               <tbody>
                 {rows.map((o) => (
                   <tr key={o.id} className="border-b border-border align-top last:border-0">
@@ -681,6 +691,18 @@ function PaymentsSection({ d }: { d: Derived }) {
                     <td className="px-4 py-3.5 text-sm tabular-nums text-muted-foreground">{naira(o.delivery_fee)}</td>
                     <td className="px-4 py-3.5"><StatusBadge status={o.status} /></td>
                     <td className="px-4 py-3.5 font-mono text-[11px] text-muted-foreground">{o.payment_reference ?? "—"}</td>
+                    <td className="px-4 py-3.5">
+                      {o.payment_method === "transfer" && o.payment_status !== "paid" && o.status !== "cancelled" ? (
+                        <button
+                          type="button"
+                          disabled={confirming === o.id}
+                          onClick={async () => { setConfirming(o.id); await onConfirmTransfer(o); setConfirming(null) }}
+                          className="inline-flex min-h-9 items-center rounded-xl bg-brand px-3 text-xs font-bold text-white disabled:opacity-60"
+                        >
+                          {confirming === o.id ? "Confirming…" : "Confirm payment"}
+                        </button>
+                      ) : <span className="text-xs text-muted-foreground">—</span>}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -688,7 +710,7 @@ function PaymentsSection({ d }: { d: Derived }) {
           </div>
         )}
       </Panel>
-      <p className="text-[11px] text-muted-foreground">Cash orders stay &quot;unpaid&quot; in the system until a payment record is added. Marking cash as collected needs a rider/admin confirmation step (planned in the migration).</p>
+      <p className="text-[11px] text-muted-foreground">Bank transfers: check the DOORS Moniepoint account for the order number in the transfer description, then press &quot;Confirm payment&quot;. Cash orders stay &quot;unpaid&quot; until a cash-collection step is added.</p>
     </div>
   )
 }

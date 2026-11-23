@@ -7,13 +7,8 @@ import { ScreenHeader, PrimaryButton } from "@/components/app/ui"
 import { formatNaira } from "@/lib/data"
 import { useApp, type PaymentMethod } from "@/lib/store"
 import { cn } from "@/lib/utils"
-
-/**
- * Bank details for manual transfers. Set ONLY to details confirmed by the DOORS owner.
- * While null, Bank Transfer is hidden (a wrong account would send customers' money to a stranger).
- * Account number given by the owner: 3001422614. Bank name + account name still to be confirmed.
- */
-const TRANSFER_ACCOUNT: { bank: string; accountName: string; accountNumber: string } | null = null
+import { TRANSFER_ACCOUNT } from "@/lib/payment-details"
+import { TransferDetails } from "@/components/app/transfer-details"
 
 /**
  * Card payments stay off until Paystack is integrated with server-side verification.
@@ -112,14 +107,7 @@ export function PaymentScreen() {
           </div>
         </section>
 
-        {paymentMethod === "transfer" && TRANSFER_ACCOUNT ? (
-          <div className="rounded-2xl border border-border bg-card p-4">
-            <p className="text-xs text-muted-foreground">Transfer to</p>
-            <p className="mt-1 text-sm font-bold text-foreground">{TRANSFER_ACCOUNT.accountName}</p>
-            <p className="text-sm font-semibold text-foreground">{TRANSFER_ACCOUNT.bank} • {TRANSFER_ACCOUNT.accountNumber}</p>
-            <p className="mt-2 text-xs text-muted-foreground">Your order is confirmed once DOORS confirms your payment.</p>
-          </div>
-        ) : null}
+        {paymentMethod === "transfer" && TRANSFER_ACCOUNT ? <TransferDetails /> : null}
 
         {/* Order summary */}
         <section className="space-y-2.5 rounded-3xl bg-secondary p-4">
