@@ -105,7 +105,7 @@ Data safety → security → authentication → DB integrity → existing functi
 - Password reset: the implicit-flow fix is live. The owner must set Supabase Auth Site URL to `https://www.doorsteps.com.ng` and add `https://www.doorsteps.com.ng/**` and `https://doorsteps.com.ng/**` to Redirect URLs.
 
 **Database:** RLS is on for all 14 public tables. Money columns are `numeric`. Open items:
-- Order creation (`app/actions/order.ts`) is two separate inserts with a "cleanup" delete that customers aren't allowed to perform under RLS. It can leave an order without items, and there is no idempotency against double submits. Should become one atomic DB function.
+- ~~Order creation is two separate inserts~~ → **fixed 2026-11-22.** The atomic, idempotent `public.place_order(jsonb)` (SECURITY INVOKER; all RLS and guards apply) and `public.current_delivery_fee()` are applied. The app uses them once PR #37 is merged. Migration: `supabase/migrations/20261122_safe_order_placement.sql`.
 - Foreign keys are in place (orders → vendors/profiles/auth.users, order_items → orders/menu_items, profiles → auth.users, etc.).
 - Advisors:
   - leaked-password protection is off (dashboard toggle)
@@ -130,10 +130,10 @@ Data safety → security → authentication → DB integrity → existing functi
 
 ### Feature audit & priorities (2026-11-22)
 
-**P0, critical (need owner decisions; ordering is currently closed via site_settings.orders_open = false):**
-1. Checkout "Debit Card" collects card number/expiry/CVV and places the order **without charging**. It's fake payment and a card-data security violation. Remove until a real payment provider (e.g. Paystack) is integrated.
-2. Checkout "Bank Transfer" shows "Moniepoint • 8123 4567 89", which looks like a placeholder. Confirm the real account or remove it.
-3. Order creation isn't atomic or idempotent (see the audit above).
+**P0, critical.** ⚠️ Ordering is **ON** in production (`site_settings.orders_open = true`, checked 2026-11-22). As of then, all 5 real orders were cash on delivery.
+1. Checkout "Debit Card" collects card number/expiry/CVV and places the order **without charging**. It's fake payment and a card-data security violation. **Fix in PR #37** (card hidden and refused by the DB until Paystack is integrated; the owner chose Paystack).
+2. Checkout "Bank Transfer" showed "Moniepoint • 8123 4567 89", which looks like a placeholder. **Hidden in PR #37.** The owner's account number is 3001422614; bank name and account name are still needed. The owner chose manual transfer confirmed by an admin.
+3. Order creation wasn't atomic or idempotent. **Fixed:** `place_order()` is applied in production and tested (rollback test); the app side is in PR #37.
 4. Support chat shows a fake auto-reply ("One of our agents will assist you shortly") but nothing is sent anywhere.
 5. Profile shows fake data ("+234 803 555 0192", "Payment methods: 2 cards") and is reachable signed-out.
 6. Notifications screen has a "Mark all read" button that does nothing (always empty).
