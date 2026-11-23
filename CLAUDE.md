@@ -114,3 +114,30 @@ Data safety → security → authentication → DB integrity → existing functi
   - `payment_events`, `approved_roles` and `site_settings` have RLS but no policies (safe, deny-all)
 - Test rows from the 2026-11-21 form tests remain in `waitlist_signups`, `rider_applications` and `vendor_applications`. The owner declined deletion.
 - Pending, not applied: `supabase/migrations/20261119_dashboard_foundation.sql` (all sections except 3).
+
+---
+
+## Proactive product engineering (owner directive, 2026-11-22)
+
+- Act as a product & engineering partner: proactively identify standard delivery-platform features DOORS is missing, failure scenarios (double taps, refresh/Back, offline, expired session, payment succeeded but UI errored, unsupported browser, device change) and mobile UX problems. Don't wait to be asked.
+- Prioritise: **P0** critical before launch (security, auth, ordering, checkout, payments, DB integrity, crashes, broken navigation) → **P1** high-value launch features (installable PWA, notification centre, web push for real order events, mobile polish, offline fallback, recovery) → **P2** post-launch.
+- **PWA:** real manifest + service worker + offline fallback + a tasteful "Get DOORS on your phone" prompt (native `beforeinstallprompt`; iOS Add-to-Home-Screen steps; shown after real engagement; never during checkout/payment/login/active order; dismissal respected; hidden once installed). Never cache auth, orders, prices or private data.
+- **Push notifications:** genuine web push (service worker + VAPID + backend) for real order events only; no private data in messages; ask permission after a clear reason (e.g. after placing an order), never on landing; app works if declined; subscriptions tied to the user, removed on logout/expiry; failures logged.
+- **Notification centre:** bell, unread count, list, read/unread, mark-all-read, persisted and RLS-protected (own notifications only), linked to orders; works with push.
+- **System states everywhere:** loading, empty, success, failure, offline, retry, session restore, network recovery, duplicate prevention.
+- Never simulate a feature (a visual Install button or in-page alert is not PWA/push).
+- Authorised: safe, isolated, non-destructive improvements without asking each time. Approval still required for DB migrations, new secrets/env vars, new infrastructure dependencies, auth/security changes and anything risky.
+
+### Feature audit & priorities (2026-11-22)
+
+**P0, critical (need owner decisions; ordering is currently closed via site_settings.orders_open = false):**
+1. Checkout "Debit Card" collects card number/expiry/CVV and places the order **without charging**. It's fake payment and a card-data security violation. Remove until a real payment provider (e.g. Paystack) is integrated.
+2. Checkout "Bank Transfer" shows "Moniepoint • 8123 4567 89", which looks like a placeholder. Confirm the real account or remove it.
+3. Order creation isn't atomic or idempotent (see the audit above).
+4. Support chat shows a fake auto-reply ("One of our agents will assist you shortly") but nothing is sent anywhere.
+5. Profile shows fake data ("+234 803 555 0192", "Payment methods: 2 cards") and is reachable signed-out.
+6. Notifications screen has a "Mark all read" button that does nothing (always empty).
+
+**P1:** installable PWA + install prompt + offline fallback (in progress) · notification centre (needs a `notifications` table) · web push for order events (needs VAPID keys in Vercel env, a `push_subscriptions` table, the `web-push` dependency and a secure server-side sender) · auth gaps from the audit above.
+
+**P2:** saved addresses, reorder, ratings/reviews, promo codes, vendor opening hours/closed state, analytics, recommendations.
