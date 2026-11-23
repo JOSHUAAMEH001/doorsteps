@@ -15,11 +15,8 @@ import { RiderFlow } from "@/components/landing/rider-flow"
 import { MotionToggle } from "@/components/landing/motion-toggle"
 import { cn } from "@/lib/utils"
 
-/** Verified DOORS contact numbers (provided by the DOORS team). */
-export const CONTACT_PHONES = [
-  { label: "0701 803 8264", tel: "+2347018038264" },
-  { label: "0704 408 9677", tel: "+2347044089677" },
-]
+export { CONTACT_PHONES } from "@/lib/contact"
+import { CONTACT_PHONES } from "@/lib/contact"
 
 const LAUNCH = new Date("2026-12-06T00:00:00+01:00").getTime()
 type Flow = "vendor" | "rider" | null
