@@ -13,6 +13,7 @@ import { WaitlistForm } from "@/components/landing/waitlist-form"
 import { StorefrontPreview, VendorFlow } from "@/components/landing/vendor-flow"
 import { RiderFlow } from "@/components/landing/rider-flow"
 import { MotionToggle } from "@/components/landing/motion-toggle"
+import { InstallPrompt } from "@/components/pwa/install-prompt"
 import { cn } from "@/lib/utils"
 
 /** Verified DOORS contact numbers (provided by the DOORS team). */
@@ -220,6 +221,7 @@ export function LandingPage() {
         <FinalCta onWaitlist={toWaitlist} onVendor={() => open("vendor")} onRider={() => open("rider")} />
       </main>
       <Footer />
+      <InstallPrompt blocked={flow !== null} />
       <VendorFlow open={flow === "vendor"} onClose={close} initialName={vendorName} />
       <RiderFlow open={flow === "rider"} onClose={close} />
     </div>

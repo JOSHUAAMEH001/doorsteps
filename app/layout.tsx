@@ -2,6 +2,7 @@ import { Analytics } from '@vercel/analytics/next'
 import type { Metadata, Viewport } from 'next'
 import { Plus_Jakarta_Sans } from 'next/font/google'
 import './globals.css'
+import { ServiceWorkerRegister } from '@/components/pwa/sw-register'
 import 'leaflet/dist/leaflet.css'
 
 const jakarta = Plus_Jakarta_Sans({
@@ -14,6 +15,8 @@ export const metadata: Metadata = {
   description:
     'Order food, groceries, run errands and send waybills for fast doorstep delivery across ESUT Agbani. Local vendors, real-time tracking.',
   generator: 'v0.app',
+  applicationName: 'DOORS',
+  appleWebApp: { capable: true, title: 'DOORS', statusBarStyle: 'default' },
 }
 
 export const viewport: Viewport = {
@@ -33,6 +36,7 @@ export default function RootLayout({
     <html lang="en" className={`bg-secondary ${jakarta.variable}`}>
       <body className="font-sans antialiased">
         {children}
+        <ServiceWorkerRegister />
         {process.env.NODE_ENV === 'production' && <Analytics />}
       </body>
     </html>
