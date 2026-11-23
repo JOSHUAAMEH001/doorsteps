@@ -1,9 +1,11 @@
 -- =============================================================================
 -- Safe order placement: atomic + idempotent, fees decided by the server
--- STATUS: NOT APPLIED. Requires the owner's approval before applying.
+-- STATUS: APPLIED to production on 2026-11-22 (owner approved) as "safe_order_placement",
+--         plus "safe_order_placement_fee_reader" (section 2b fix: customers can't read
+--         site_settings under RLS, so the fee is read through current_delivery_fee()).
 --
 -- Additive only. Nothing is dropped; no existing rows are changed.
--- Rollback: drop function public.place_order(jsonb);
+-- Rollback: drop function public.place_order(jsonb); drop function public.current_delivery_fee();
 --           drop index if exists public.orders_user_request_uidx;
 --           alter table public.orders drop column client_request_id;   (new, empty column)
 --           alter table public.site_settings drop column delivery_fee; (new column)
@@ -29,6 +31,20 @@ create unique index if not exists orders_user_request_uidx
 -- 2. Delivery fee is set by DOORS (admin), never by the customer's device. Default 0 = today's behaviour.
 alter table public.site_settings add column if not exists delivery_fee numeric(12,2) not null default 0
   check (delivery_fee >= 0 and delivery_fee <= 100000);
+
+-- 2b. site_settings is deny-all under RLS (no policies), so a customer can't read it.
+--     This helper returns ONLY the delivery fee (nothing else from site_settings).
+create or replace function public.current_delivery_fee()
+returns numeric
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select coalesce((select s.delivery_fee from public.site_settings s where s.id), 0)
+$$;
+revoke all on function public.current_delivery_fee() from public, anon;
+grant execute on function public.current_delivery_fee() to authenticated;
 
 -- 3. Atomic, idempotent order placement.
 create or replace function public.place_order(p jsonb)
@@ -113,7 +129,7 @@ begin
     return jsonb_build_object('ok', false, 'code', 'closed', 'error', 'DOORS has not launched yet. Ordering opens soon.');
   end if;
 
-  select coalesce((select s.delivery_fee from public.site_settings s where s.id), 0) into v_fee;
+  v_fee := public.current_delivery_fee();
 
   -- Human-readable summary built from the menu (not from the device). Customers can't
   -- update orders afterwards (orders_guard), so it's set at insert time.
