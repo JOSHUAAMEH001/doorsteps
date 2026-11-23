@@ -130,7 +130,7 @@ Data safety → security → authentication → DB integrity → existing functi
 
 ### Feature audit & priorities (2026-11-22)
 
-**P0, critical.** ⚠️ Ordering is **ON** in production (`site_settings.orders_open = true`, checked 2026-11-22). As of then, all 5 real orders were cash on delivery.
+**P0, critical.** Ordering is now **OFF** in production (`site_settings.orders_open = false`). The owner closed it on 2026-11-22 until launch; it had been ON until then, and all 5 real orders before that were cash on delivery. Admins and `tester_emails` can still order. PR #40 shows "Ordering has not started yet" on Add to cart. Reopen only when the owner says so.
 1. Checkout "Debit Card" collects card number/expiry/CVV and places the order **without charging**. It's fake payment and a card-data security violation. **Fix in PR #37** (card hidden and refused by the DB until Paystack is integrated; the owner chose Paystack).
 2. Checkout "Bank Transfer" showed "Moniepoint • 8123 4567 89", which looks like a placeholder. **Hidden in PR #37.** The owner's account number is 3001422614; bank name and account name are still needed. The owner chose manual transfer confirmed by an admin.
 3. Order creation wasn't atomic or idempotent. **Fixed:** `place_order()` is applied in production and tested (rollback test); the app side is in PR #37.
@@ -147,5 +147,6 @@ Data safety → security → authentication → DB integrity → existing functi
 - 2026-11-21 `recruitment_forms`, `vendor_menu_media`, `form_options` (owner approved).
 - 2026-11-22 `safe_order_placement` + `safe_order_placement_fee_reader`: atomic, idempotent `place_order()` and `current_delivery_fee()` (owner approved; rollback-tested).
 - 2026-11-22 `admin_vendors_and_prepaid_gate`: admins can read, update and add vendors (no delete). Restaurants see cash orders immediately and prepaid (transfer/card) orders only once `payment_status = 'paid'` (owner approved; rollback-tested).
+- 2026-11-22 data change (owner instruction "close ordering"): `site_settings.orders_open` set from `true` to `false`, and `closed_message` set to "Ordering has not started yet. Doorsteps Campus Logistics Ltd has not yet started operations." To undo on launch day: `update site_settings set orders_open = true`.
 - Drafted, **NOT applied** (needs owner approval): `20261122_customer_profiles.sql` (name saved at sign-up; users edit own name/phone/avatar behind a guard trigger that blocks role/vendor changes; public `avatars` bucket).
 - Bank transfer account (owner-confirmed): Moniepoint · 3001422614 · Doorsteps Campus Logistics Limited (`lib/payment-details.ts`). Admins confirm transfers in Admin → Payments.
