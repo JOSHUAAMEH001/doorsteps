@@ -14,6 +14,7 @@ import {
 import useSWR from "swr"
 import { getMyOrders, getVendors } from "@/app/actions/catalog"
 import { getCurrentProfile, type Role } from "@/app/actions/roles"
+import { getOrderingStatus } from "@/app/actions/ordering"
 import type { CategoryId, Order, Product, Vendor } from "@/lib/data"
 
 export type Screen =
@@ -98,8 +99,11 @@ export interface DeliveryDetails {
   dropoffLng: number | null
 }
 
-/** Result of addToCart: "conflict" means the item is from another vendor and the user is being asked. */
-export type AddToCartResult = "added" | "conflict"
+/**
+ * Result of addToCart: "conflict" means the item is from another vendor and the user is being asked;
+ * "closed" means ordering hasn't started (the "Ordering has not started yet" notice is shown).
+ */
+export type AddToCartResult = "added" | "conflict" | "closed"
 
 interface PendingCartReplace {
   product: Product
@@ -176,6 +180,12 @@ interface AppState {
   confirmCartReplace: () => void
   cancelCartReplace: () => void
   cartVendorId: string | null
+  /** False while DOORS isn't taking orders from this visitor (site_settings.orders_open off). */
+  orderingOpen: boolean
+  /** Whether the "Ordering has not started yet" notice is showing. */
+  orderingNotice: boolean
+  showOrderingNotice: () => void
+  closeOrderingNotice: () => void
   updateQty: (productId: string, qty: number) => void
   removeFromCart: (productId: string) => void
   clearCart: () => void
@@ -227,6 +237,22 @@ export function AppProvider({ children, initialScreen = "splash", initialVendors
   const profile = profileResult?.data
   const profileName = profile?.full_name?.trim() || profile?.email?.split("@")[0]?.trim()
   const displayName = profile ? profileName || "Customer" : userName
+
+  // Is DOORS taking orders from this visitor? (Admins and testers can order while it's closed.)
+  // Unknown (loading or error) counts as open: the database refuses orders anyway when closed.
+  const { data: ordering } = useSWR(["ordering-status", profile?.id ?? "guest"], () => getOrderingStatus(), {
+    revalidateOnFocus: true,
+    // Keep the last answer while it re-checks after sign-in, so the switch doesn't flicker to "open".
+    keepPreviousData: true,
+  })
+  const orderingOpen = ordering?.canOrder !== false
+  const orderingOpenRef = useRef(orderingOpen)
+  useLayoutEffect(() => {
+    orderingOpenRef.current = orderingOpen
+  }, [orderingOpen])
+  const [orderingNotice, setOrderingNotice] = useState(false)
+  const showOrderingNotice = useCallback(() => setOrderingNotice(true), [])
+  const closeOrderingNotice = useCallback(() => setOrderingNotice(false), [])
 
   const vendors = useMemo<Vendor[]>(
     () => vendorRows.map((vendor) => ({
@@ -403,6 +429,11 @@ export function AppProvider({ children, initialScreen = "splash", initialVendors
   const cartVendorId = cart[0]?.product.vendorId ?? null
 
   const addToCart = useCallback((product: Product, qty: number, note?: string, onAdded?: () => void): AddToCartResult => {
+    // Before launch: tell the customer ordering hasn't started instead of filling a cart they can't check out.
+    if (!orderingOpenRef.current) {
+      setOrderingNotice(true)
+      return "closed"
+    }
     const current = cartRef.current
     // One order goes to one vendor: ask before replacing a cart from another vendor.
     if (current.length > 0 && current[0].product.vendorId !== product.vendorId) {
@@ -492,6 +523,10 @@ export function AppProvider({ children, initialScreen = "splash", initialVendors
     confirmCartReplace,
     cancelCartReplace,
     cartVendorId,
+    orderingOpen,
+    orderingNotice,
+    showOrderingNotice,
+    closeOrderingNotice,
     updateQty,
     removeFromCart,
     clearCart,

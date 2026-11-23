@@ -37,6 +37,7 @@ import { BrandLogo } from "@/components/brand/logo"
 import { cn } from "@/lib/utils"
 import { useSignOut } from "@/components/dashboard/shell"
 import { CartConflictDialog } from "@/components/app/cart-conflict-dialog"
+import { OrderingClosedDialog } from "@/components/app/ordering-closed-dialog"
 import { hasPendingRecovery } from "@/lib/auth-recovery"
 
 /** Role dashboards render their own full-screen layout (sidebar, header, mobile nav). */
@@ -163,6 +164,7 @@ export function AppShell() {
 
   return (
     <div className="flex min-h-0 flex-1">
+      <OrderingClosedDialog />
       <CartConflictDialog />
       {showDesktopNav ? <DesktopSidebar /> : null}
       <div className={cn("flex min-h-0 min-w-0 flex-1 flex-col", showDesktopNav && "lg:ml-[240px]")}>
