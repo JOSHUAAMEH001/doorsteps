@@ -22,7 +22,8 @@ export async function getVendors(category?: string) {
       return data ?? []
     },
     ['catalog-vendors', user?.id ?? 'anonymous', category ?? 'all'],
-    { revalidate: 60 },
+    // Tagged so the admin Store editor can refresh it immediately after an edit.
+    { revalidate: 60, tags: ['catalog-vendors'] },
   )
   return loadCachedVendors()
 }

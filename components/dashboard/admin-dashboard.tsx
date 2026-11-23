@@ -16,6 +16,7 @@ import {
   Rocket,
   Settings,
   ShoppingBag,
+  SquarePen,
   Store,
   Timer,
   TrendingUp,
@@ -37,6 +38,7 @@ import { ACTIVE_DELIVERY, ADMIN_TRANSITIONS, IN_PROGRESS, STATUS_META, type Orde
 import { useApp } from "@/lib/store"
 import { DashboardShell, type NavItem, type ShellNotice } from "@/components/dashboard/shell"
 import { RecruitmentSection } from "@/components/dashboard/recruitment-section"
+import { StoreEditor } from "@/components/dashboard/store-editor"
 import {
   AreaChart,
   Badge,
@@ -69,7 +71,7 @@ const FleetMap = dynamic(() => import("@/components/dashboard/fleet-map"), {
   loading: () => <div className="h-[360px] w-full animate-pulse rounded-xl bg-secondary" />,
 })
 
-type Section = "overview" | "orders" | "deliveries" | "riders" | "vendors" | "customers" | "payments" | "reports" | "signups" | "support" | "audit" | "settings"
+type Section = "overview" | "orders" | "deliveries" | "riders" | "vendors" | "store" | "customers" | "payments" | "reports" | "signups" | "support" | "audit" | "settings"
 
 /** A rider counts as "live" if their phone shared a location in the last 2 minutes. */
 const LIVE_WINDOW_MS = 2 * 60_000
@@ -110,6 +112,7 @@ export function AdminDashboard() {
     { id: "deliveries", label: "Deliveries & tracking", icon: MapPinned, badge: derived.active.length, group: "Operations" },
     { id: "riders", label: "Riders", icon: Bike, group: "Operations" },
     { id: "vendors", label: "Vendors", icon: Store, group: "Network" },
+    { id: "store", label: "Store editor", icon: SquarePen, group: "Network" },
     { id: "customers", label: "Customers", icon: Users, group: "Network" },
     { id: "payments", label: "Payments", icon: CreditCard, group: "Finance" },
     { id: "reports", label: "Reports & analytics", icon: BarChart3, group: "Finance" },
@@ -130,6 +133,7 @@ export function AdminDashboard() {
     deliveries: ["Deliveries & tracking", "Live rider positions and active deliveries."],
     riders: ["Riders", "Availability, workload and earnings."],
     vendors: ["Vendors", "Stores on the platform and their performance."],
+    store: ["Store editor", "Edit what customers see: store names, banners and products, with a live preview."],
     customers: ["Customers", "Everyone who has ordered on DOORS."],
     payments: ["Payments", "Payment method, status and references for each order."],
     reports: ["Reports & analytics", "Trends from real order data."],
@@ -149,6 +153,7 @@ export function AdminDashboard() {
           {section === "deliveries" ? <DeliveriesSection d={derived} now={now} onAssign={assign} /> : null}
           {section === "riders" ? <RidersSection d={derived} now={now} /> : null}
           {section === "vendors" ? <VendorsSection d={derived} workspace={workspace} /> : null}
+          {section === "store" ? <StoreEditor notify={(text, tone) => toasts.push(text, tone)} /> : null}
           {section === "customers" ? <CustomersSection d={derived} now={now} /> : null}
           {section === "payments" ? <PaymentsSection d={derived} /> : null}
           {section === "reports" ? <ReportsSection d={derived} /> : null}

@@ -83,7 +83,7 @@ export function VendorScreen() {
       </div>
 
       {/* Store info */}
-      <div className="-mt-6 rounded-t-3xl bg-background px-5 pt-5">
+      <div className="relative -mt-6 rounded-t-3xl bg-background px-5 pt-5">
         <div className="flex items-start justify-between gap-3">
           <div>
             <h1 className="text-xl font-extrabold tracking-tight text-foreground">
