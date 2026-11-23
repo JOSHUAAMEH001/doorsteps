@@ -141,3 +141,11 @@ Data safety → security → authentication → DB integrity → existing functi
 **P1:** installable PWA + install prompt + offline fallback (in progress) · notification centre (needs a `notifications` table) · web push for order events (needs VAPID keys in Vercel env, a `push_subscriptions` table, the `web-push` dependency and a secure server-side sender) · auth gaps from the audit above.
 
 **P2:** saved addresses, reorder, ratings/reviews, promo codes, vendor opening hours/closed state, analytics, recommendations.
+
+### Database changes log (production)
+
+- 2026-11-21 `recruitment_forms`, `vendor_menu_media`, `form_options` (owner approved).
+- 2026-11-22 `safe_order_placement` + `safe_order_placement_fee_reader`: atomic, idempotent `place_order()` and `current_delivery_fee()` (owner approved; rollback-tested).
+- 2026-11-22 `admin_vendors_and_prepaid_gate`: admins can read, update and add vendors (no delete). Restaurants see cash orders immediately and prepaid (transfer/card) orders only once `payment_status = 'paid'` (owner approved; rollback-tested).
+- Drafted, **NOT applied** (needs owner approval): `20261122_customer_profiles.sql` (name saved at sign-up; users edit own name/phone/avatar behind a guard trigger that blocks role/vendor changes; public `avatars` bucket).
+- Bank transfer account (owner-confirmed): Moniepoint · 3001422614 · Doorsteps Campus Logistics Limited (`lib/payment-details.ts`). Admins confirm transfers in Admin → Payments.
