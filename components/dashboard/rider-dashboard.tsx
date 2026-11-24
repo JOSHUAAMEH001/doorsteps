@@ -27,6 +27,7 @@ import { useApp } from "@/lib/store"
 import { cn } from "@/lib/utils"
 import Image from "next/image"
 import { AdminPreviewBar, useSignOut } from "@/components/dashboard/shell"
+import { PushToggle } from "@/components/app/push-toggle"
 import { useRiderLocationSharing } from "@/components/screens/use-rider-location-sharing"
 import {
   ActionButton,
@@ -146,6 +147,7 @@ export function RiderDashboard({ preview = false }: { preview?: boolean }) {
             <>
               {tab === "home" ? (
                 <>
+                  {preview ? null : <PushToggle hideWhenOn why="when there's a new delivery request" />}
                   <div className="grid grid-cols-2 gap-3">
                     <MiniStat icon={Wallet} label="Earned today" value={naira(today?.earnings ?? 0)} />
                     <MiniStat icon={CheckCircle2} label="Done today" value={String(today?.deliveries ?? 0)} />
@@ -414,6 +416,7 @@ function ProfileTab({ workspace, deliveredCount }: { workspace: RiderWorkspace; 
           <div><p className="text-lg font-extrabold">{workspace.riderName ?? "Rider"}</p><p className="text-sm text-muted-foreground">DOORS rider · {deliveredCount} deliveries</p></div>
         </div>
       </Panel>
+      <PushToggle why="when there's a new delivery request" />
       <div className="flex flex-col gap-2">
         <ActionButton variant="secondary" size="lg" onClick={() => navigate("support")} className="w-full justify-start"><Phone aria-hidden="true" className="size-5" />Contact support</ActionButton>
         <ActionButton variant="secondary" size="lg" onClick={() => navigate("home")} className="w-full justify-start"><Store aria-hidden="true" className="size-5" />Open customer app</ActionButton>

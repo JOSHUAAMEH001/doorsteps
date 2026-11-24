@@ -40,6 +40,7 @@ import { CartConflictDialog } from "@/components/app/cart-conflict-dialog"
 import { OrderingClosedDialog } from "@/components/app/ordering-closed-dialog"
 import { hasPendingRecovery } from "@/lib/auth-recovery"
 import { InstallPrompt } from "@/components/pwa/install-prompt"
+import { useNotificationLinks, useUnreadNotifications } from "@/lib/use-notifications"
 
 /** Never interrupt sign-in, checkout or an active order with the install prompt. */
 const NO_INSTALL_PROMPT = new Set<Screen>(["splash", "onboarding", "auth", "cart", "delivery", "payment", "success", "tracking"])
@@ -108,6 +109,7 @@ function useForwardAuthLinks() {
 
 export function AppShell() {
   useForwardAuthLinks()
+  useNotificationLinks()
   const { screen, role } = useApp()
   const showNav = TAB_SCREENS.has(screen)
   const isWorkspace = WORKSPACE_SCREENS.has(screen)
@@ -196,6 +198,7 @@ export function AppShell() {
 function NavigationItems({ onNavigate }: { onNavigate: () => void }) {
   const { screen, role, navigate, cartCount } = useApp()
   const { signOut, busy: signingOut } = useSignOut()
+  const unread = useUnreadNotifications()
   return (
     <>
       <nav aria-label="Main navigation" className="flex flex-col gap-1.5">
@@ -218,6 +221,9 @@ function NavigationItems({ onNavigate }: { onNavigate: () => void }) {
               <span className="flex-1">{item.label}</span>
               {item.screen === "cart" && cartCount > 0 ? (
                 <span className="rounded-full bg-brand px-2 py-0.5 text-[11px] font-bold text-brand-foreground">{cartCount}</span>
+              ) : null}
+              {item.screen === "notifications" && unread > 0 ? (
+                <span aria-label={`${unread} unread`} className="rounded-full bg-brand px-2 py-0.5 text-[11px] font-bold text-brand-foreground">{unread > 9 ? "9+" : unread}</span>
               ) : null}
             </button>
           )

@@ -54,3 +54,43 @@ self.addEventListener("fetch", (event) => {
   }
   // Anything else: default browser behaviour (no respondWith).
 })
+
+/*
+ * Push notifications (sent by the "send-push" Supabase Edge Function).
+ * Payload: { id, title, body, link, tag }. `link` is always a path on this site.
+ */
+self.addEventListener("push", (event) => {
+  let data = {}
+  try {
+    data = event.data ? event.data.json() : {}
+  } catch {
+    data = { body: event.data ? event.data.text() : "" }
+  }
+  const title = typeof data.title === "string" && data.title ? data.title : "DOORS"
+  event.waitUntil(
+    self.registration.showNotification(title, {
+      body: typeof data.body === "string" ? data.body : "",
+      icon: "/pwa/icon-192.png",
+      tag: typeof data.tag === "string" ? data.tag : undefined,
+      renotify: Boolean(data.tag),
+      data: { link: typeof data.link === "string" && data.link.startsWith("/") ? data.link : "/" },
+    }),
+  )
+})
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close()
+  const link = event.notification.data && typeof event.notification.data.link === "string" ? event.notification.data.link : "/"
+  const target = new URL(link.startsWith("/") ? link : "/", self.location.origin)
+  event.waitUntil((async () => {
+    const windows = await self.clients.matchAll({ type: "window", includeUncontrolled: true })
+    const open = windows.find((client) => new URL(client.url).origin === self.location.origin)
+    if (open) {
+      // DOORS is already open: bring it forward and let the app switch screens itself.
+      await open.focus()
+      open.postMessage({ type: "doors-open", link: target.pathname + target.search })
+      return
+    }
+    await self.clients.openWindow(target.href)
+  })())
+})

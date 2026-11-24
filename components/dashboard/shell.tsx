@@ -6,6 +6,8 @@ import { Bell, Eye, LogOut, Menu, Store, X, type LucideIcon } from "lucide-react
 import { BrandLogo } from "@/components/brand/logo"
 import { useApp } from "@/lib/store"
 import { createClient } from "@/lib/supabase/client"
+import { forgetPushOnThisDevice } from "@/lib/push-client"
+import { PushToggle } from "@/components/app/push-toggle"
 import { cn } from "@/lib/utils"
 
 export type NavItem<T extends string> = { id: T; label: string; icon: LucideIcon; badge?: number; group?: string }
@@ -20,6 +22,9 @@ export function useSignOut() {
     if (busy) return
     setBusy(true)
     const supabase = createClient()
+    // Shared phones: stop this device getting the signed-out person's notifications.
+    // Time-limited and never throws, so it can't hold up or block signing out.
+    await forgetPushOnThisDevice().catch(() => {})
     try {
       const { error } = await supabase.auth.signOut()
       // A network/server failure must not leave the user signed in on this device.
@@ -121,7 +126,7 @@ export function DashboardShell<T extends string>({
             {subtitle ? <p className="hidden truncate text-xs text-muted-foreground sm:block sm:text-sm">{subtitle}</p> : null}
           </div>
           {headerExtra}
-          <NotificationBell notices={notices} />
+          <NotificationBell notices={notices} roleLabel={roleLabel} />
           <div className="hidden items-center gap-2.5 sm:flex">
             <span className="flex size-10 items-center justify-center rounded-full bg-brand text-sm font-extrabold text-white">{(userName[0] ?? "D").toUpperCase()}</span>
             <span className="max-w-[140px] truncate text-sm font-bold text-foreground">{userName}</span>
@@ -200,7 +205,13 @@ function SidebarContent<T extends string>({ roleLabel, nav, active, onSelect, sh
   )
 }
 
-function NotificationBell({ notices }: { notices: ShellNotice[] }) {
+const PUSH_REASON: Record<string, string> = {
+  Admin: "for every new order, transfers to confirm and cancellations",
+  Vendor: "the moment a new order comes in",
+  Rider: "when you're given a new delivery",
+}
+
+function NotificationBell({ notices, roleLabel }: { notices: ShellNotice[]; roleLabel: string }) {
   const [open, setOpen] = useState(false)
   return (
     <div className="relative">
@@ -235,6 +246,9 @@ function NotificationBell({ notices }: { notices: ShellNotice[] }) {
                 ))}
               </ul>
             )}
+            <div className="border-t border-border p-3">
+              <PushToggle compact why={PUSH_REASON[roleLabel] ?? "about your orders"} />
+            </div>
           </div>
         </>
       ) : null}
