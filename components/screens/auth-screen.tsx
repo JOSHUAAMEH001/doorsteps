@@ -30,6 +30,7 @@ function authErrorMessage(error: unknown, mode: "login" | "signup") {
 export function AuthScreen() {
   const { navigate, signIn, cart } = useApp()
   const [mode, setMode] = useState<"login" | "signup">("login")
+  const [fullName, setFullName] = useState("")
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [passwordVisible, setPasswordVisible] = useState(false)
@@ -42,6 +43,12 @@ export function AuthScreen() {
     event.preventDefault()
     if (requestInFlight.current) return
 
+    const cleanName = fullName.replace(/\s+/g, " ").trim()
+    if (mode === "signup" && cleanName.length < 2) {
+      setMessageType("error")
+      setMessage("Enter your name.")
+      return
+    }
     if (!email.trim() || password.length < 6) {
       setMessageType("error")
       setMessage("Enter a valid email and a password with at least 6 characters.")
@@ -60,7 +67,8 @@ export function AuthScreen() {
         : await supabase.auth.signUp({
             email: email.trim(),
             password,
-            options: { emailRedirectTo: redirectTo },
+            // The name is saved to the customer's profile when the account is created.
+            options: { emailRedirectTo: redirectTo, data: { full_name: cleanName.slice(0, 80) } },
           })
 
       if (result.error) {
@@ -77,7 +85,7 @@ export function AuthScreen() {
         return
       }
 
-      signIn(email.split("@")[0] || "Customer")
+      signIn((mode === "signup" && cleanName) || email.split("@")[0] || "Customer")
       const profile = await getCurrentProfile()
       await mutate("current-profile", profile, { revalidate: false })
       const landing = landingScreen(profile.data?.role, cart.length > 0)
@@ -109,6 +117,22 @@ export function AuthScreen() {
         </div>
 
         <form onSubmit={handleSubmit} className="mt-8 flex flex-1 flex-col gap-5" noValidate={false}>
+          {mode === "signup" ? (
+            <label className="block text-sm font-semibold text-foreground" htmlFor="auth-name">
+              Your name
+              <input
+                id="auth-name"
+                type="text"
+                value={fullName}
+                onChange={(event) => setFullName(event.target.value)}
+                placeholder="e.g. Chika Eze"
+                autoComplete="name"
+                maxLength={80}
+                required
+                className="mt-2 w-full rounded-2xl border border-input bg-background px-4 py-3.5 text-sm font-medium outline-none transition placeholder:text-muted-foreground/70 focus-visible:border-brand focus-visible:ring-2 focus-visible:ring-brand/20"
+              />
+            </label>
+          ) : null}
           <label className="block text-sm font-semibold text-foreground" htmlFor="auth-email">
             Email address
             <input
