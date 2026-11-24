@@ -9,13 +9,20 @@ import { landingScreen, useApp } from "@/lib/store"
 import { createClient } from "@/lib/supabase/client"
 import { getCurrentProfile } from "@/app/actions/roles"
 
+/**
+ * New passwords need at least 8 characters (owner decision; matches Supabase → Auth → Email →
+ * "Minimum password length" and the reset-password page). Logging in is not limited by this,
+ * so people with older, shorter passwords can still sign in.
+ */
+const MIN_PASSWORD_LENGTH = 8
+
 function authErrorMessage(error: unknown, mode: "login" | "signup") {
   const { code, status } = (error ?? {}) as { code?: string; status?: number }
 
   if (code === "email_not_confirmed") {
     return "Please confirm your email address. Check your inbox for the link."
   }
-  if (code === "weak_password") return "Choose a stronger password and try again."
+  if (code === "weak_password") return `Choose a stronger password with at least ${MIN_PASSWORD_LENGTH} characters.`
   if (code === "over_email_send_rate_limit" || code === "over_request_rate_limit" || status === 429) {
     return "Too many attempts. Please wait a moment and try again."
   }
@@ -30,6 +37,7 @@ function authErrorMessage(error: unknown, mode: "login" | "signup") {
 export function AuthScreen() {
   const { navigate, signIn, cart } = useApp()
   const [mode, setMode] = useState<"login" | "signup">("login")
+  const [fullName, setFullName] = useState("")
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [passwordVisible, setPasswordVisible] = useState(false)
@@ -42,9 +50,20 @@ export function AuthScreen() {
     event.preventDefault()
     if (requestInFlight.current) return
 
-    if (!email.trim() || password.length < 6) {
+    const cleanName = fullName.replace(/\s+/g, " ").trim()
+    if (mode === "signup" && cleanName.length < 2) {
       setMessageType("error")
-      setMessage("Enter a valid email and a password with at least 6 characters.")
+      setMessage("Enter your name.")
+      return
+    }
+    if (!email.trim() || !password) {
+      setMessageType("error")
+      setMessage("Enter your email address and password.")
+      return
+    }
+    if (mode === "signup" && password.length < MIN_PASSWORD_LENGTH) {
+      setMessageType("error")
+      setMessage(`Choose a password with at least ${MIN_PASSWORD_LENGTH} characters.`)
       return
     }
 
@@ -60,7 +79,8 @@ export function AuthScreen() {
         : await supabase.auth.signUp({
             email: email.trim(),
             password,
-            options: { emailRedirectTo: redirectTo },
+            // The name is saved to the customer's profile when the account is created.
+            options: { emailRedirectTo: redirectTo, data: { full_name: cleanName.slice(0, 80) } },
           })
 
       if (result.error) {
@@ -77,7 +97,7 @@ export function AuthScreen() {
         return
       }
 
-      signIn(email.split("@")[0] || "Customer")
+      signIn((mode === "signup" && cleanName) || email.split("@")[0] || "Customer")
       const profile = await getCurrentProfile()
       await mutate("current-profile", profile, { revalidate: false })
       const landing = landingScreen(profile.data?.role, cart.length > 0)
@@ -109,6 +129,22 @@ export function AuthScreen() {
         </div>
 
         <form onSubmit={handleSubmit} className="mt-8 flex flex-1 flex-col gap-5" noValidate={false}>
+          {mode === "signup" ? (
+            <label className="block text-sm font-semibold text-foreground" htmlFor="auth-name">
+              Your name
+              <input
+                id="auth-name"
+                type="text"
+                value={fullName}
+                onChange={(event) => setFullName(event.target.value)}
+                placeholder="e.g. Chika Eze"
+                autoComplete="name"
+                maxLength={80}
+                required
+                className="mt-2 w-full rounded-2xl border border-input bg-background px-4 py-3.5 text-sm font-medium outline-none transition placeholder:text-muted-foreground/70 focus-visible:border-brand focus-visible:ring-2 focus-visible:ring-brand/20"
+              />
+            </label>
+          ) : null}
           <label className="block text-sm font-semibold text-foreground" htmlFor="auth-email">
             Email address
             <input
@@ -131,10 +167,10 @@ export function AuthScreen() {
                 type={passwordVisible ? "text" : "password"}
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
-                placeholder="At least 6 characters"
+                placeholder={mode === "signup" ? `At least ${MIN_PASSWORD_LENGTH} characters` : "Your password"}
                 autoComplete={mode === "login" ? "current-password" : "new-password"}
                 required
-                minLength={6}
+                minLength={mode === "signup" ? MIN_PASSWORD_LENGTH : undefined}
                 className="w-full rounded-2xl border border-input bg-background px-4 py-3.5 pr-12 text-sm font-medium outline-none transition focus-visible:border-brand focus-visible:ring-2 focus-visible:ring-brand/20"
               />
               <button

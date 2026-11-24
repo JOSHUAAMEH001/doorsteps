@@ -20,18 +20,36 @@ async function getRiderActionUser(supabase: Awaited<ReturnType<typeof client>>) 
   return { user, error: null }
 }
 
-export async function getCurrentProfile(): Promise<SafeResult<{ id: string; email: string; full_name: string | null; role: Role; vendor_id: string | null } | null>> {
+export type CurrentProfile = {
+  id: string
+  email: string
+  full_name: string | null
+  role: Role
+  vendor_id: string | null
+  /** Saved as 234XXXXXXXXXX. Null until the customer adds one. */
+  phone: string | null
+  avatar_url: string | null
+}
+
+export async function getCurrentProfile(): Promise<SafeResult<CurrentProfile | null>> {
   try {
     const supabase = await client()
     const { data: { user }, error: authError } = await supabase.auth.getUser()
     if (authError || !user) return { data: null, error: authError?.message ?? null }
-    const { data, error } = await supabase.from('profiles').select('id, email, full_name, role, vendor_id').eq('id', user.id).maybeSingle()
-    if (error?.code === '42703' && error.message.toLowerCase().includes('full_name')) {
-      const { data: profileWithoutName, error: fallbackError } = await supabase.from('profiles').select('id, email, role, vendor_id').eq('id', user.id).maybeSingle()
-      const fallbackData = profileWithoutName ? { ...profileWithoutName, full_name: null } : null
-      return { data: fallbackData as { id: string; email: string; full_name: string | null; role: Role; vendor_id: string | null } | null, error: fallbackError?.message ?? null }
+    const { data, error } = await supabase.from('profiles').select('id, email, full_name, role, vendor_id, phone, avatar_url').eq('id', user.id).maybeSingle()
+    // 42703 = a column doesn't exist yet (database change not applied): load what's there.
+    if (error?.code === '42703') {
+      const { data: base, error: fallbackError } = await supabase.from('profiles').select('id, email, role, vendor_id').eq('id', user.id).maybeSingle()
+      const fallbackData: CurrentProfile | null = base
+        ? { ...(base as Omit<CurrentProfile, "full_name" | "phone" | "avatar_url">), full_name: null, phone: null, avatar_url: null }
+        : null
+      if (fallbackData) {
+        const { data: named } = await supabase.from('profiles').select('full_name').eq('id', user.id).maybeSingle()
+        fallbackData.full_name = (named as { full_name?: string | null } | null)?.full_name ?? null
+      }
+      return { data: fallbackData as CurrentProfile | null, error: fallbackError?.message ?? null }
     }
-    return { data: data as { id: string; email: string; full_name: string | null; role: Role; vendor_id: string | null } | null, error: error?.message ?? null }
+    return { data: data as CurrentProfile | null, error: error?.message ?? null }
   } catch (error) { return { data: null, error: error instanceof Error ? error.message : String(error) } }
 }
 
