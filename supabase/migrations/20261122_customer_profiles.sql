@@ -1,7 +1,8 @@
 -- =============================================================================
 -- Customer profiles: name at sign-up, phone number and profile picture
 -- STATUS: APPLIED to production 2026-11-23 (owner approved: "go ahead with no 2").
---         Rollback-tested before applying (a customer cannot make themselves admin).
+--         Rollback-tested before applying: 13 checks passed (sign-up keeps the name; a customer
+--         can edit only their own name/phone/photo and cannot make themselves admin).
 --
 -- Additive: two new columns, one guard trigger, one policy, one storage bucket.
 -- Nothing is dropped; existing rows are not changed.
@@ -64,12 +65,10 @@ begin
 end;
 $$;
 
-drop trigger if exists profiles_self_edit_guard on public.profiles;
-create trigger profiles_self_edit_guard before update on public.profiles
+create or replace trigger profiles_self_edit_guard before update on public.profiles
   for each row execute function public.profiles_self_edit_guard();
 revoke all on function public.profiles_self_edit_guard() from public, anon, authenticated;
 
-drop policy if exists "user updates own profile" on public.profiles;
 create policy "user updates own profile" on public.profiles
   for update to authenticated using (id = auth.uid()) with check (id = auth.uid());
 
@@ -97,20 +96,16 @@ insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_typ
 values ('avatars', 'avatars', true, 5242880, array['image/jpeg', 'image/png', 'image/webp'])
 on conflict (id) do nothing;
 
-drop policy if exists "user reads own avatar files" on storage.objects;
 create policy "user reads own avatar files" on storage.objects
   for select to authenticated
   using (bucket_id = 'avatars' and (storage.foldername(name))[1] = auth.uid()::text);
-drop policy if exists "user uploads own avatar" on storage.objects;
 create policy "user uploads own avatar" on storage.objects
   for insert to authenticated
   with check (bucket_id = 'avatars' and (storage.foldername(name))[1] = auth.uid()::text);
-drop policy if exists "user updates own avatar" on storage.objects;
 create policy "user updates own avatar" on storage.objects
   for update to authenticated
   using (bucket_id = 'avatars' and (storage.foldername(name))[1] = auth.uid()::text)
   with check (bucket_id = 'avatars' and (storage.foldername(name))[1] = auth.uid()::text);
-drop policy if exists "user deletes own avatar" on storage.objects;
 create policy "user deletes own avatar" on storage.objects
   for delete to authenticated
   using (bucket_id = 'avatars' and (storage.foldername(name))[1] = auth.uid()::text);
