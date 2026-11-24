@@ -2,6 +2,7 @@
 
 import { Bell, Home, Receipt, ShoppingCart, User } from "lucide-react"
 import { tabForScreen, useApp, type Screen } from "@/lib/store"
+import { useUnreadNotifications } from "@/lib/use-notifications"
 import { cn } from "@/lib/utils"
 
 const items: { screen: Screen; label: string; icon: typeof Home }[] = [
@@ -14,6 +15,7 @@ const items: { screen: Screen; label: string; icon: typeof Home }[] = [
 
 export function BottomNav() {
   const { screen, navigate, cartCount } = useApp()
+  const unread = useUnreadNotifications()
   return (
     <nav className="sticky bottom-0 z-30 border-t border-border bg-background/95 px-2 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden">
       <div className="flex items-stretch justify-between">
@@ -39,6 +41,11 @@ export function BottomNav() {
                 {item.screen === "cart" && cartCount > 0 ? (
                   <span className="absolute -right-2 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-brand px-1 text-[10px] font-bold text-brand-foreground">
                     {cartCount}
+                  </span>
+                ) : null}
+                {item.screen === "notifications" && unread > 0 ? (
+                  <span aria-label={`${unread} unread`} className="absolute -right-2 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-brand px-1 text-[10px] font-bold text-brand-foreground">
+                    {unread > 9 ? "9+" : unread}
                   </span>
                 ) : null}
               </span>
