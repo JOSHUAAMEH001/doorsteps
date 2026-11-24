@@ -901,7 +901,10 @@ function Footer() {
           <p className="text-xs font-bold uppercase tracking-[0.18em] text-white/40">Contact us</p>
           <ul className="mt-4 flex flex-col gap-2.5 text-sm font-semibold">
             {CONTACT_PHONES.map((ph) => (
-              <li key={ph.tel}><a href={`tel:${ph.tel}`} className="inline-flex items-center gap-2 text-white/80 hover:text-white"><Phone aria-hidden="true" className="size-4 text-[#F04A50]" />{ph.label}</a></li>
+              <li key={ph.tel} className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                <a href={`tel:${ph.tel}`} className="inline-flex items-center gap-2 text-white/80 hover:text-white"><Phone aria-hidden="true" className="size-4 text-[#F04A50]" />{ph.label}</a>
+                <a href={ph.whatsapp} target="_blank" rel="noopener noreferrer" aria-label={`WhatsApp ${ph.label}`} className="text-xs font-bold text-[#4ADE80] hover:text-[#86EFAC]">WhatsApp</a>
+              </li>
             ))}
           </ul>
         </div>

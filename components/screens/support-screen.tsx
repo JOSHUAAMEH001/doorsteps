@@ -1,6 +1,6 @@
 "use client"
 
-import { ChevronDown, Phone, Receipt } from "lucide-react"
+import { ChevronDown, MessageCircle, Phone, Receipt } from "lucide-react"
 import { ScreenHeader } from "@/components/app/ui"
 import { useApp } from "@/lib/store"
 import { CONTACT_PHONES } from "@/lib/contact"
@@ -16,7 +16,7 @@ const QUESTIONS = [
   },
   {
     q: "I need to change my delivery address",
-    a: "Call us as soon as possible with your order number. We can usually change it before a rider picks up your order.",
+    a: "Call or WhatsApp us as soon as possible with your order number. We can usually change it before a rider picks up your order.",
   },
   {
     q: "I paid by bank transfer",
@@ -24,7 +24,7 @@ const QUESTIONS = [
   },
   {
     q: "Something is wrong with my order",
-    a: "Call us with your order number and tell us what happened. We'll sort it out with the restaurant or rider.",
+    a: "Call or WhatsApp us with your order number and tell us what happened. We'll sort it out with the restaurant or rider.",
   },
 ]
 
@@ -38,18 +38,29 @@ export function SupportScreen() {
 
       <div className="flex flex-col gap-5 px-5 pt-2">
         <section aria-labelledby="call-title" className="rounded-3xl bg-brand p-5 text-brand-foreground">
-          <h2 id="call-title" className="text-lg font-extrabold tracking-tight">Call DOORS</h2>
-          <p className="mt-1 text-sm text-brand-foreground/85">Tap a number to call. Have your order number ready.</p>
+          <h2 id="call-title" className="text-lg font-extrabold tracking-tight">Call or WhatsApp DOORS</h2>
+          <p className="mt-1 text-sm text-brand-foreground/85">All our numbers are on WhatsApp. Have your order number ready.</p>
           <div className="mt-4 flex flex-col gap-2">
             {CONTACT_PHONES.map((ph) => (
-              <a
-                key={ph.tel}
-                href={`tel:${ph.tel}`}
-                className="flex min-h-12 items-center justify-between rounded-2xl bg-white px-4 text-base font-extrabold text-foreground active:scale-[0.99]"
-              >
-                <span className="tabular-nums">{ph.label}</span>
-                <span className="inline-flex items-center gap-1.5 text-sm text-brand"><Phone aria-hidden="true" className="size-4" />Call</span>
-              </a>
+              <div key={ph.tel} className="flex min-h-12 items-center gap-2 rounded-2xl bg-white py-1.5 pl-4 pr-1.5 text-foreground">
+                <span className="flex-1 text-base font-extrabold tabular-nums">{ph.label}</span>
+                <a
+                  href={ph.whatsapp}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label={`WhatsApp ${ph.label}`}
+                  className="inline-flex min-h-10 items-center gap-1.5 rounded-xl bg-[#E8F7EE] px-3 text-sm font-bold text-[#167A43] active:scale-[0.97]"
+                >
+                  <MessageCircle aria-hidden="true" className="size-4" />WhatsApp
+                </a>
+                <a
+                  href={`tel:${ph.tel}`}
+                  aria-label={`Call ${ph.label}`}
+                  className="inline-flex min-h-10 items-center gap-1.5 rounded-xl bg-brand-soft px-3 text-sm font-bold text-brand active:scale-[0.97]"
+                >
+                  <Phone aria-hidden="true" className="size-4" />Call
+                </a>
+              </div>
             ))}
           </div>
         </section>
