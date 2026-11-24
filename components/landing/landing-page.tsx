@@ -16,11 +16,8 @@ import { MotionToggle } from "@/components/landing/motion-toggle"
 import { InstallPrompt } from "@/components/pwa/install-prompt"
 import { cn } from "@/lib/utils"
 
-/** Verified DOORS contact numbers (provided by the DOORS team). */
-export const CONTACT_PHONES = [
-  { label: "0701 803 8264", tel: "+2347018038264" },
-  { label: "0704 408 9677", tel: "+2347044089677" },
-]
+export { CONTACT_PHONES } from "@/lib/contact"
+import { CONTACT_PHONES } from "@/lib/contact"
 
 const LAUNCH = new Date("2026-12-06T00:00:00+01:00").getTime()
 type Flow = "vendor" | "rider" | null
@@ -906,7 +903,10 @@ function Footer() {
           <p className="text-xs font-bold uppercase tracking-[0.18em] text-white/40">Contact us</p>
           <ul className="mt-4 flex flex-col gap-2.5 text-sm font-semibold">
             {CONTACT_PHONES.map((ph) => (
-              <li key={ph.tel}><a href={`tel:${ph.tel}`} className="inline-flex items-center gap-2 text-white/80 hover:text-white"><Phone aria-hidden="true" className="size-4 text-[#F04A50]" />{ph.label}</a></li>
+              <li key={ph.tel} className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                <a href={`tel:${ph.tel}`} className="inline-flex items-center gap-2 text-white/80 hover:text-white"><Phone aria-hidden="true" className="size-4 text-[#F04A50]" />{ph.label}</a>
+                <a href={ph.whatsapp} target="_blank" rel="noopener noreferrer" aria-label={`WhatsApp ${ph.label}`} className="text-xs font-bold text-[#4ADE80] hover:text-[#86EFAC]">WhatsApp</a>
+              </li>
             ))}
           </ul>
         </div>

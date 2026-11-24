@@ -1,151 +1,100 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
-import { Send } from "lucide-react"
+import { ChevronDown, MessageCircle, Phone, Receipt } from "lucide-react"
 import { ScreenHeader } from "@/components/app/ui"
-import { cn } from "@/lib/utils"
+import { useApp } from "@/lib/store"
+import { CONTACT_PHONES } from "@/lib/contact"
 
-interface Msg {
-  id: number
-  from: "agent" | "me"
-  text: string
-  time: string
-}
-
-const initial: Msg[] = []
-
-const quickReplies = [
-  "Where is my order?",
-  "I want a refund",
-  "Change my address",
-  "Talk to a human",
+/**
+ * Help & support. DOORS has no live chat yet, so this screen connects customers to a real
+ * person by phone instead of showing a chat that sends messages nowhere.
+ */
+const QUESTIONS = [
+  {
+    q: "Where is my order?",
+    a: "Open Orders and tap your order to see its status. Once a rider picks it up, you can follow them on the map.",
+  },
+  {
+    q: "I need to change my delivery address",
+    a: "Call or WhatsApp us as soon as possible with your order number. We can usually change it before a rider picks up your order.",
+  },
+  {
+    q: "I paid by bank transfer",
+    a: "Make sure you used your order number as the transfer description. DOORS confirms transfers by hand, and your order goes to the restaurant once your payment is confirmed.",
+  },
+  {
+    q: "Something is wrong with my order",
+    a: "Call or WhatsApp us with your order number and tell us what happened. We'll sort it out with the restaurant or rider.",
+  },
 ]
 
-function nowTime() {
-  return new Date().toLocaleTimeString("en-NG", {
-    hour: "numeric",
-    minute: "2-digit",
-  })
-}
-
 export function SupportScreen() {
-  const [messages, setMessages] = useState<Msg[]>(initial)
-  const [input, setInput] = useState("")
-  const [typing, setTyping] = useState(false)
-  const scrollRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" })
-  }, [messages, typing])
-
-  function send(text: string) {
-    const value = text.trim()
-    if (!value) return
-    setMessages((m) => [...m, { id: Date.now(), from: "me", text: value, time: nowTime() }])
-    setInput("")
-    setTyping(true)
-    setTimeout(() => {
-      setTyping(false)
-      setMessages((m) => [
-        ...m,
-        {
-          id: Date.now() + 1,
-          from: "agent",
-          text: "Thanks for reaching out! I've noted that. One of our agents will assist you shortly. Is there anything else I can help with?",
-          time: nowTime(),
-        },
-      ])
-    }, 1400)
-  }
+  const { orders, navigate } = useApp()
+  const latest = orders[0]
 
   return (
-    <div className="flex h-full flex-col bg-background">
-      <ScreenHeader title="Doorsteps Support" subtitle="Typically replies in a few minutes" />
+    <div className="flex min-h-full flex-col bg-background pb-10">
+      <ScreenHeader title="Help & support" subtitle="Talk to a real person at DOORS" />
 
-      <div ref={scrollRef} className="flex-1 space-y-3 overflow-y-auto p-5">
-        {messages.map((m) => (
-          <div
-            key={m.id}
-            className={cn("flex", m.from === "me" ? "justify-end" : "justify-start")}
-          >
-            <div
-              className={cn(
-                "max-w-[78%] rounded-3xl px-4 py-2.5 text-sm leading-relaxed",
-                m.from === "me"
-                  ? "rounded-br-md bg-brand text-brand-foreground"
-                  : "rounded-bl-md border border-border bg-card text-foreground",
-              )}
-            >
-              <p>{m.text}</p>
-              <p
-                className={cn(
-                  "mt-1 text-[10px]",
-                  m.from === "me" ? "text-brand-foreground/70" : "text-muted-foreground",
-                )}
-              >
-                {m.time}
-              </p>
-            </div>
+      <div className="flex flex-col gap-5 px-5 pt-2">
+        <section aria-labelledby="call-title" className="rounded-3xl bg-brand p-5 text-brand-foreground">
+          <h2 id="call-title" className="text-lg font-extrabold tracking-tight">Call or WhatsApp DOORS</h2>
+          <p className="mt-1 text-sm text-brand-foreground/85">All our numbers are on WhatsApp. Have your order number ready.</p>
+          <div className="mt-4 flex flex-col gap-2">
+            {CONTACT_PHONES.map((ph) => (
+              <div key={ph.tel} className="flex min-h-12 items-center gap-2 rounded-2xl bg-white py-1.5 pl-4 pr-1.5 text-foreground">
+                <span className="flex-1 text-base font-extrabold tabular-nums">{ph.label}</span>
+                <a
+                  href={ph.whatsapp}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label={`WhatsApp ${ph.label}`}
+                  className="inline-flex min-h-10 items-center gap-1.5 rounded-xl bg-[#E8F7EE] px-3 text-sm font-bold text-[#167A43] active:scale-[0.97]"
+                >
+                  <MessageCircle aria-hidden="true" className="size-4" />WhatsApp
+                </a>
+                <a
+                  href={`tel:${ph.tel}`}
+                  aria-label={`Call ${ph.label}`}
+                  className="inline-flex min-h-10 items-center gap-1.5 rounded-xl bg-brand-soft px-3 text-sm font-bold text-brand active:scale-[0.97]"
+                >
+                  <Phone aria-hidden="true" className="size-4" />Call
+                </a>
+              </div>
+            ))}
           </div>
-        ))}
-        {typing && (
-          <div className="flex justify-start">
-            <div className="flex gap-1 rounded-3xl rounded-bl-md border border-border bg-card px-4 py-3">
-              {[0, 1, 2].map((i) => (
-                <span
-                  key={i}
-                  className="h-2 w-2 animate-bounce rounded-full bg-muted-foreground"
-                  style={{ animationDelay: `${i * 0.15}s` }}
-                />
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
+        </section>
 
-      {/* quick replies */}
-      <div className="flex gap-2 overflow-x-auto px-5 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        {quickReplies.map((q) => (
+        {latest ? (
           <button
-            key={q}
             type="button"
-            onClick={() => send(q)}
-            className="whitespace-nowrap rounded-full border border-border bg-background px-3.5 py-2 text-xs font-semibold text-foreground transition-colors active:bg-secondary"
+            onClick={() => navigate("tracking", { orderCode: latest.id, vendorId: latest.vendorId ?? undefined })}
+            className="flex items-center gap-3 rounded-2xl border border-border bg-card p-4 text-left"
           >
-            {q}
+            <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-secondary"><Receipt aria-hidden="true" className="size-5" /></span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-xs text-muted-foreground">Your latest order</span>
+              <span className="block text-sm font-extrabold">{latest.id} · {latest.vendorName}</span>
+            </span>
+            <span className="text-xs font-bold text-brand">Track</span>
           </button>
-        ))}
-      </div>
+        ) : null}
 
-      {/* input */}
-      <form
-        onSubmit={(e) => {
-          e.preventDefault()
-          send(input)
-        }}
-        className="flex items-center gap-2 border-t border-border bg-background p-3"
-      >
-        <input
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.nativeEvent.isComposing && e.keyCode !== 229) {
-              e.preventDefault()
-              send(input)
-            }
-          }}
-          placeholder="Type your message..."
-          className="h-11 flex-1 rounded-full border border-border bg-secondary px-4 text-sm text-foreground outline-none placeholder:text-muted-foreground focus:border-brand"
-        />
-        <button
-          type="submit"
-          aria-label="Send message"
-          disabled={!input.trim()}
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand text-brand-foreground transition-transform active:scale-90 disabled:opacity-50"
-        >
-          <Send className="h-5 w-5" />
-        </button>
-      </form>
+        <section aria-labelledby="faq-title">
+          <h2 id="faq-title" className="mb-2 text-sm font-bold text-foreground">Common questions</h2>
+          <div className="flex flex-col gap-2">
+            {QUESTIONS.map((item) => (
+              <details key={item.q} className="group rounded-2xl border border-border bg-card px-4 py-3">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-sm font-semibold [&::-webkit-details-marker]:hidden">
+                  {item.q}
+                  <ChevronDown aria-hidden="true" className="size-4 shrink-0 transition-transform group-open:rotate-180" />
+                </summary>
+                <p className="pt-2 text-sm leading-relaxed text-muted-foreground">{item.a}</p>
+              </details>
+            ))}
+          </div>
+        </section>
+      </div>
     </div>
   )
 }

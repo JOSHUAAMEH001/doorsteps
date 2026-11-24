@@ -262,7 +262,7 @@ function VendorFlowBody({ onClose, initialName }: { onClose: () => void; initial
               {[
                 ["Business", f.business_name], ["Category", category], ["Owner", f.owner_name], ["Phone", f.phone],
                 ["Location", f.address], ["Products", `${products.filter((p) => p.name.trim()).length} added`],
-                ["Photos", String([logo, cover, menuFile, ...products.map((p) => p.photo)].filter(Boolean).length)], ["Contact by", f.contact_method],
+                ["Photos", String([logo, cover, menuFile, ...products.map((p) => p.photo)].filter(Boolean).length)], ["Contact by", { whatsapp: "WhatsApp", call: "Phone call", sms: "SMS", email: "Email" }[f.contact_method]],
               ].map(([k, v]) => (
                 <div key={k}><dt className="text-xs text-[#8A8A8A]">{k}</dt><dd className="break-words font-semibold text-[#171717]">{v || "—"}</dd></div>
               ))}
