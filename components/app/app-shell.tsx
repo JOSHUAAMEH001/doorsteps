@@ -38,6 +38,10 @@ import { cn } from "@/lib/utils"
 import { useSignOut } from "@/components/dashboard/shell"
 import { CartConflictDialog } from "@/components/app/cart-conflict-dialog"
 import { hasPendingRecovery } from "@/lib/auth-recovery"
+import { InstallPrompt } from "@/components/pwa/install-prompt"
+
+/** Never interrupt sign-in, checkout or an active order with the install prompt. */
+const NO_INSTALL_PROMPT = new Set<Screen>(["splash", "onboarding", "auth", "cart", "delivery", "payment", "success", "tracking"])
 
 /** Role dashboards render their own full-screen layout (sidebar, header, mobile nav). */
 const WORKSPACE_SCREENS = new Set<Screen>(["vendorDashboard", "riderDashboard", "adminDashboard"])
@@ -158,12 +162,13 @@ export function AppShell() {
   })()
 
   if (isWorkspace) {
-    return <div key={screen} className="flex min-h-0 flex-1">{content}</div>
+    return <div key={screen} className="flex min-h-0 flex-1">{content}<InstallPrompt /></div>
   }
 
   return (
     <div className="flex min-h-0 flex-1">
       <CartConflictDialog />
+      <InstallPrompt blocked={NO_INSTALL_PROMPT.has(screen)} />
       {showDesktopNav ? <DesktopSidebar /> : null}
       <div className={cn("flex min-h-0 min-w-0 flex-1 flex-col", showDesktopNav && "lg:ml-[240px]")}>
         {showDesktopNav ? <MobileHeader /> : null}

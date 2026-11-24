@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#D71920" />
+  <title>You're offline · DOORS</title>
+  <style>
+    :root { color-scheme: light; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100dvh; display: flex; align-items: center; justify-content: center; padding: 24px;
+      font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background: #D71920; color: #fff; text-align: center; }
+    main { max-width: 360px; }
+    img { width: min(60vw, 220px); height: auto; }
+    h1 { font-size: 26px; margin: 28px 0 8px; letter-spacing: -0.02em; }
+    p { margin: 0 0 24px; line-height: 1.5; color: rgba(255,255,255,.85); }
+    button { min-height: 48px; padding: 0 24px; border: 0; border-radius: 16px; background: #fff; color: #171717; font-weight: 800; font-size: 15px; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <main>
+    <img src="/brand/doors-logo-white.png" alt="DOORS" />
+    <h1>You're offline</h1>
+    <p>Check your internet connection. Your cart is saved on this phone, so nothing is lost. We'll reload as soon as you're back online.</p>
+    <button type="button" onclick="location.reload()">Try again</button>
+  </main>
+  <script>window.addEventListener("online", function () { location.reload() })</script>
+</body>
+</html>
