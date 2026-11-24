@@ -148,5 +148,16 @@ Data safety → security → authentication → DB integrity → existing functi
 - 2026-11-22 `safe_order_placement` + `safe_order_placement_fee_reader`: atomic, idempotent `place_order()` and `current_delivery_fee()` (owner approved; rollback-tested).
 - 2026-11-22 `admin_vendors_and_prepaid_gate`: admins can read, update and add vendors (no delete). Restaurants see cash orders immediately and prepaid (transfer/card) orders only once `payment_status = 'paid'` (owner approved; rollback-tested).
 - 2026-11-22 data change (owner instruction "close ordering"): `site_settings.orders_open` set from `true` to `false`, and `closed_message` set to "Ordering has not started yet. Doorsteps Campus Logistics Ltd has not yet started operations." To undo on launch day: `update site_settings set orders_open = true`.
-- Drafted, **NOT applied** (needs owner approval): `20261122_customer_profiles.sql` (name saved at sign-up; users edit own name/phone/avatar behind a guard trigger that blocks role/vendor changes; public `avatars` bucket).
+- 2026-11-23 `customer_profiles` (owner approved, "go ahead with no 2"; 13-check rollback test passed first).
+  - Adds `profiles.phone` and `profiles.avatar_url`, plus the policy "user updates own profile".
+  - Adds the guard trigger `profiles_self_edit_guard`: users change only their own name, phone and photo, never their role, vendor or email.
+  - `handle_new_user` now saves the sign-up name.
+  - Adds a public `avatars` bucket with own-folder policies. PR #41.
+- 2026-11-23 `push_notifications` (owner: "push notification should work now"; rollback-tested first).
+  - Installs the `pg_net` extension.
+  - Adds the tables `notifications`, `push_subscriptions` and `push_config`. `push_config` is service-role only and holds the VAPID keys and the kick secret.
+  - Adds order triggers `orders_notify_new` (deferred, insert) and `orders_notify` (update). Both are wrapped so they never block an order.
+  - Adds the statement trigger `notifications_push_kick`, which calls the Edge Function **`send-push`** (deployed, `verify_jwt` off, checks the secret).
+  - Devices are never deleted; they are switched off with `revoked_at`. PR #42.
+- Tooling note: the Supabase MCP connector asks for a confirmation this editor can't show whenever SQL contains DROP / DELETE FROM / TRUNCATE (even inside function bodies), so those calls are auto-declined. Write additive SQL (`create or replace trigger`, no `drop ... if exists`), or ask the owner to run the statement themselves.
 - Bank transfer account (owner-confirmed): Moniepoint · 3001422614 · Doorsteps Campus Logistics Limited (`lib/payment-details.ts`). Admins confirm transfers in Admin → Payments.
