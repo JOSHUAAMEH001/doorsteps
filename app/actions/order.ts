@@ -11,6 +11,8 @@ export type CheckoutItem = {
 }
 
 export type CheckoutInput = {
+  /** One id per checkout attempt. Sending the same id again returns the same order (no duplicates). */
+  requestId: string
   customerName: string
   phone: string
   pickupLocation: string
@@ -22,6 +24,7 @@ export type CheckoutInput = {
   dropoffNote?: string | null
   itemDescription: string
   vendorId: string
+  /** Display-only. The server decides prices, the delivery fee and the total. */
   subtotal: number
   deliveryFee: number
   total: number
@@ -37,83 +40,65 @@ export async function submitOrder(_input: unknown): Promise<OrderResult> {
   return { ok: false, message: 'Use the cart checkout to place an order.' }
 }
 
+/** Messages raised by our own database checks that are safe and useful to show customers. */
+const FRIENDLY_DB_MESSAGES = [
+  'DOORS has not launched yet. Ordering opens soon.',
+  'This item is no longer available.',
+  'This item does not belong to the selected restaurant.',
+  'Quantity is too large.',
+  'Each item must come from the menu.',
+]
+
+const refCode = () => Math.random().toString(36).slice(2, 8).toUpperCase()
+
+/**
+ * Places an order through the database function place_order(), which saves the order and
+ * all its items in ONE transaction (all-or-nothing), returns the existing order if the same
+ * checkout attempt is sent twice, and takes prices and the delivery fee from the server.
+ */
 export async function submitCheckout(input: CheckoutInput): Promise<OrderResult> {
-  if (!input.items?.length || !input.vendorId || input.items.some((item) => !Number.isInteger(item.quantity) || item.quantity < 1 || item.quantity > 99)) {
+  if (!input?.items?.length || !input.vendorId || input.items.some((item) => !Number.isInteger(item.quantity) || item.quantity < 1 || item.quantity > 50)) {
     return { ok: false, message: 'Your cart is empty or contains an invalid quantity. Please review your cart.' }
   }
+  if (typeof input.requestId !== 'string' || !/^[0-9a-f-]{36}$/i.test(input.requestId)) {
+    return { ok: false, message: 'Something is wrong with this checkout. Please refresh the page and try again.' }
+  }
 
+  const ref = refCode()
   try {
     const supabase = await createClient()
-    const itemIds = [...new Set(input.items.map((item) => item.menuItemId))]
-    const { data: liveItems, error: menuError } = await supabase
-      .from('menu_items')
-      .select('id, vendor_id, name, price, is_available')
-      .in('id', itemIds)
-      .eq('vendor_id', input.vendorId)
-      .eq('is_available', true)
-
-    if (menuError) {
-      console.error('[orders] Failed to validate menu items', menuError)
-      return { ok: false, message: 'Could not load. Please refresh.' }
-    }
-    if (!liveItems || liveItems.length !== itemIds.length) {
-      return { ok: false, message: 'Some items are no longer available. Please refresh your cart.' }
-    }
-    const liveById = new Map(liveItems.map((item) => [item.id, item]))
-    const orderItems = input.items.map((item) => {
-      const live = liveById.get(item.menuItemId)!
-      return { ...item, itemName: live.name, unitPrice: Number(live.price) }
-    })
-    const subtotal = orderItems.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0)
-    const deliveryFee = Math.max(0, Number(input.deliveryFee) || 0)
-    const total = subtotal + deliveryFee
-
-    // Anything that isn't a finite coordinate inside Nigeria is stored as null.
     const dropoff = sanitizeDropoff(input.dropoffLat, input.dropoffLng)
-    const dropoffNote = typeof input.dropoffNote === 'string' && input.dropoffNote.trim()
-      ? input.dropoffNote.trim().slice(0, 300)
-      : null
-
-    const { data: order, error: orderError } = await supabase
-      .from('orders')
-      .insert({
-        customer_name: input.customerName.trim(),
-        phone: input.phone.trim(),
-        pickup_location: input.pickupLocation.trim(),
-        dropoff_location: input.dropoffLocation.trim(),
-        dropoff_lat: dropoff.lat,
-        dropoff_lng: dropoff.lng,
-        dropoff_note: dropoffNote,
-        item_description: input.itemDescription.trim(),
-        vendor_id: input.vendorId,
-        subtotal,
-        delivery_fee: deliveryFee,
-        total,
-        payment_method: input.paymentMethod,
-      })
-      .select('id, order_code')
-      .single()
-
-    if (orderError || !order) {
-      return { ok: false, message: orderError?.message ?? 'Order could not be created.' }
+    const payload = {
+      request_id: input.requestId,
+      vendor_id: input.vendorId,
+      customer_name: input.customerName,
+      phone: input.phone,
+      dropoff_location: input.dropoffLocation,
+      dropoff_lat: dropoff.lat,
+      dropoff_lng: dropoff.lng,
+      dropoff_note: input.dropoffNote ?? null,
+      payment_method: input.paymentMethod,
+      items: input.items.map((item) => ({ menu_item_id: item.menuItemId, quantity: item.quantity })),
     }
 
-    const { error: itemsError } = await supabase.from('order_items').insert(
-      orderItems.map((item) => ({
-        order_id: order.id,
-        menu_item_id: item.menuItemId,
-        item_name: item.itemName,
-        unit_price: item.unitPrice,
-        quantity: item.quantity,
-      })),
-    )
-
-    if (itemsError) {
-      await supabase.from('orders').delete().eq('id', order.id)
-      return { ok: false, message: itemsError.message }
+    const { data, error } = await supabase.rpc('place_order', { p: payload })
+    if (error) {
+      console.error(`[orders] place_order failed ref=${ref}`, { code: error.code, message: error.message, details: error.details })
+      if (FRIENDLY_DB_MESSAGES.includes(error.message)) return { ok: false, message: error.message }
+      if (error.code === 'PGRST202' || error.code === '42883') {
+        return { ok: false, message: `Ordering is being updated. Please try again in a few minutes. (Ref ${ref})` }
+      }
+      if (error.code === '22P02') return { ok: false, message: 'Some items in your cart are no longer valid. Please refresh your cart.' }
+      return { ok: false, message: `We couldn't place your order. Your cart has been kept. Please try again. (Ref ${ref})` }
     }
 
-    if (process.env.RESEND_API_KEY) {
+    const result = (data ?? {}) as { ok?: boolean; duplicate?: boolean; order_code?: string; total?: number; error?: string }
+    if (!result.ok || !result.order_code) {
+      return { ok: false, message: result.error ?? `We couldn't place your order. Please try again. (Ref ${ref})` }
+    }
+
+    // Notify DOORS once per real new order (not when a retry returns the same order).
+    if (!result.duplicate && process.env.RESEND_API_KEY) {
       try {
         await fetch('https://api.resend.com/emails', {
           method: 'POST',
@@ -121,17 +106,25 @@ export async function submitCheckout(input: CheckoutInput): Promise<OrderResult>
           body: JSON.stringify({
             from: 'Doorsteps <onboarding@resend.dev>',
             to: ['amehjoshua031@gmail.com'],
-            subject: `New Doorsteps order ${order.order_code}`,
-            text: [`Order: ${order.order_code}`, `Customer: ${input.customerName}`, `Phone: ${input.phone}`, `Items: ${orderItems.map((item) => `${item.quantity}x ${item.itemName}`).join(', ')}`, `Total: ₦${total.toLocaleString('en-NG')}`, `Dropoff: ${input.dropoffLocation}`].join('\\n'),
+            subject: `New Doorsteps order ${result.order_code}`,
+            text: [
+              `Order: ${result.order_code}`,
+              `Customer: ${input.customerName}`,
+              `Phone: ${input.phone}`,
+              `Items: ${input.items.map((item) => `${item.quantity}x ${item.itemName}`).join(', ')}`,
+              `Total: ₦${Number(result.total ?? 0).toLocaleString('en-NG')}`,
+              `Dropoff: ${input.dropoffLocation}`,
+            ].join('\n'),
           }),
         })
       } catch (emailError) {
-        console.error('[v0] order email failed', emailError)
+        console.error('[orders] order email failed', emailError)
       }
     }
 
-    return { ok: true, orderCode: order.order_code }
+    return { ok: true, orderCode: result.order_code }
   } catch (error) {
-    return { ok: false, message: error instanceof Error ? error.message : String(error) }
+    console.error(`[orders] submitCheckout crashed ref=${ref}`, error)
+    return { ok: false, message: `We couldn't reach our server. Your cart has been kept. Please try again. (Ref ${ref})` }
   }
 }

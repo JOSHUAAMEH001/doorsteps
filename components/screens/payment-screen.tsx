@@ -1,12 +1,20 @@
 "use client"
 
 import { Banknote, Building2, Check, CreditCard, LoaderCircle } from "lucide-react"
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { submitCheckout } from "@/app/actions/order"
 import { ScreenHeader, PrimaryButton } from "@/components/app/ui"
 import { formatNaira } from "@/lib/data"
 import { useApp, type PaymentMethod } from "@/lib/store"
 import { cn } from "@/lib/utils"
+import { TRANSFER_ACCOUNT } from "@/lib/payment-details"
+import { TransferDetails } from "@/components/app/transfer-details"
+
+/**
+ * Card payments stay off until Paystack is integrated with server-side verification.
+ * DOORS must never collect card numbers or CVVs on its own form.
+ */
+const CARD_PAYMENTS_ENABLED = false
 
 const methods: {
   id: PaymentMethod
@@ -15,9 +23,15 @@ const methods: {
   icon: typeof Banknote
 }[] = [
   { id: "cod", label: "Cash on Delivery", desc: "Pay the rider when it arrives", icon: Banknote },
-  { id: "transfer", label: "Bank Transfer", desc: "Transfer to our account", icon: Building2 },
-  { id: "card", label: "Debit Card", desc: "Pay securely with your card", icon: CreditCard },
+  ...(TRANSFER_ACCOUNT ? [{ id: "transfer" as const, label: "Bank Transfer", desc: "Transfer to our account", icon: Building2 }] : []),
+  ...(CARD_PAYMENTS_ENABLED ? [{ id: "card" as const, label: "Debit Card", desc: "Pay securely with your card", icon: CreditCard }] : []),
 ]
+
+function newRequestId() {
+  return typeof crypto !== "undefined" && "randomUUID" in crypto
+    ? crypto.randomUUID()
+    : "10000000-1000-4000-8000-100000000000".replace(/[018]/g, (c) => (Number(c) ^ (Math.random() * 16) >> (Number(c) / 4)).toString(16))
+}
 
 export function PaymentScreen() {
   const {
@@ -34,11 +48,15 @@ export function PaymentScreen() {
     userName,
     vendors,
   } = useApp()
-  const [cardNumber, setCardNumber] = useState("")
-  const [expiry, setExpiry] = useState("")
-  const [cvv, setCvv] = useState("")
   const [error, setError] = useState("")
   const [submitting, setSubmitting] = useState(false)
+  // One id per checkout attempt: retries and double taps return the same order, never a second one.
+  const requestId = useRef(newRequestId())
+
+  // If a hidden method was selected earlier, fall back to cash on delivery.
+  useEffect(() => {
+    if (!methods.some((m) => m.id === paymentMethod)) setPaymentMethod("cod")
+  }, [paymentMethod, setPaymentMethod])
 
   const total = cartSubtotal + deliveryFee + serviceFee
 
@@ -89,47 +107,7 @@ export function PaymentScreen() {
           </div>
         </section>
 
-        {paymentMethod === "transfer" ? (
-          <div className="rounded-2xl border border-border bg-card p-4">
-            <p className="text-xs text-muted-foreground">Transfer to</p>
-            <p className="mt-1 text-sm font-bold text-foreground">
-              Doorsteps Logistics Ltd
-            </p>
-            <p className="text-sm font-semibold text-foreground">
-              Moniepoint • 8123 4567 89
-            </p>
-            <p className="mt-2 text-xs text-muted-foreground">
-              Your order is confirmed once payment reflects.
-            </p>
-          </div>
-        ) : null}
-
-        {paymentMethod === "card" ? (
-          <div className="space-y-3">
-            <input
-              value={cardNumber}
-              onChange={(event) => setCardNumber(event.target.value)}
-              inputMode="numeric"
-              placeholder="Card number"
-              className="w-full rounded-2xl border border-border bg-background px-4 py-3 text-sm outline-none focus:border-brand"
-            />
-            <div className="flex gap-3">
-              <input
-                value={expiry}
-                onChange={(event) => setExpiry(event.target.value)}
-                placeholder="MM / YY"
-                className="w-full rounded-2xl border border-border bg-background px-4 py-3 text-sm outline-none focus:border-brand"
-              />
-              <input
-                value={cvv}
-                onChange={(event) => setCvv(event.target.value)}
-                inputMode="numeric"
-                placeholder="CVV"
-                className="w-full rounded-2xl border border-border bg-background px-4 py-3 text-sm outline-none focus:border-brand"
-              />
-            </div>
-          </div>
-        ) : null}
+        {paymentMethod === "transfer" && TRANSFER_ACCOUNT ? <TransferDetails /> : null}
 
         {/* Order summary */}
         <section className="space-y-2.5 rounded-3xl bg-secondary p-4">
@@ -167,10 +145,6 @@ export function PaymentScreen() {
               setError("Your cart is empty. Add an item before placing an order.")
               return
             }
-            if (paymentMethod === "card" && (cardNumber.replace(/\D/g, "").length < 12 || !expiry.trim() || cvv.replace(/\D/g, "").length < 3)) {
-              setError("Enter valid card details to continue.")
-              return
-            }
             const vendorId = cart[0].product.vendorId
             const vendor = vendors.find((item) => item.id === vendorId)
             if (!vendor) {
@@ -186,6 +160,7 @@ export function PaymentScreen() {
             let result: Awaited<ReturnType<typeof submitCheckout>>
             try {
               result = await submitCheckout({
+                requestId: requestId.current,
                 customerName: userName,
                 phone: deliveryDetails.phone,
                 pickupLocation: vendor.name,
@@ -217,6 +192,7 @@ export function PaymentScreen() {
               setError(result.message || "We couldn't place your order. Please try again. Your cart has been kept.")
               return
             }
+            requestId.current = newRequestId()
             placeOrder(result.orderCode)
             clearCart()
             // Replace the payment step, so Back from the confirmation can't resubmit the order.

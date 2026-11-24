@@ -3,12 +3,13 @@
 import { Check } from "lucide-react"
 import { PrimaryButton } from "@/components/app/ui"
 import { useApp } from "@/lib/store"
+import { TransferDetails } from "@/components/app/transfer-details"
 
 export function SuccessScreen() {
-  const { navigate, params, deliveryDetails } = useApp()
+  const { navigate, params, deliveryDetails, paymentMethod } = useApp()
 
   return (
-    <div className="flex h-full flex-col items-center justify-center px-8 text-center">
+    <div className="flex min-h-full flex-col items-center justify-center px-8 py-10 text-center">
       <div>
         <span className="relative flex h-24 w-24 items-center justify-center rounded-full bg-brand-soft">
           <span className="flex h-16 w-16 items-center justify-center rounded-full bg-brand text-brand-foreground">
@@ -38,6 +39,12 @@ export function SuccessScreen() {
           </div>
         ) : null}
       </div>
+
+      {paymentMethod === "transfer" ? (
+        <div className="mt-4 w-full max-w-xs">
+          <TransferDetails orderCode={params.orderCode} />
+        </div>
+      ) : null}
 
       <div className="mt-8 w-full max-w-xs space-y-3">
         <PrimaryButton onClick={() => navigate("tracking", { orderCode: params.orderCode, vendorId: params.vendorId })}>
