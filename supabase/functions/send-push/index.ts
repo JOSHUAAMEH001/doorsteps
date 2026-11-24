@@ -79,6 +79,7 @@ Deno.serve(async (req) => {
         .from("push_subscriptions")
         .select("id, user_id, endpoint, p256dh, auth, failures")
         .in("user_id", userIds)
+        .is("revoked_at", null)
       if (subError) throw subError
       const subs = (subRows ?? []) as Subscription[]
 
@@ -95,15 +96,17 @@ Deno.serve(async (req) => {
           } catch (error) {
             const status = (error as { statusCode?: number }).statusCode
             if (status === 404 || status === 410) {
-              // The phone/browser has thrown this subscription away: forget it.
+              // The phone/browser has thrown this subscription away: stop using it.
               removed++
-              await db.from("push_subscriptions").delete().eq("id", s.id)
+              await db.from("push_subscriptions").update({ revoked_at: new Date().toISOString() }).eq("id", s.id)
             } else {
               failed++
               anyTemporaryFailure = true
               console.error("[send-push] delivery failed", status, (error as Error).message)
-              if (s.failures >= 19) await db.from("push_subscriptions").delete().eq("id", s.id)
-              else await db.from("push_subscriptions").update({ failures: s.failures + 1 }).eq("id", s.id)
+              const failures = s.failures + 1
+              await db.from("push_subscriptions")
+                .update(failures >= 20 ? { failures, revoked_at: new Date().toISOString() } : { failures })
+                .eq("id", s.id)
             }
           }
         }))

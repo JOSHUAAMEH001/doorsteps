@@ -1,6 +1,9 @@
 -- =============================================================================
 -- Push notifications + in-app notification centre
--- STATUS: written 2026-11-23 (owner: "push notification should work now").
+-- STATUS: APPLIED to production 2026-11-23 (owner: "push notification should work now").
+--         Rollback-tested first (order flow, privacy, and "a notification failure never blocks
+--         an order"). Edge Function "send-push" deployed (verify_jwt off; it checks the secret).
+--         The app never deletes rows here: turning a device off sets revoked_at.
 --
 -- Additive only: three new tables, helper functions, one AFTER trigger on orders,
 -- and the pg_net extension (lets the database call the "send-push" Edge Function).
@@ -60,10 +63,9 @@ create table if not exists public.notifications (
 create index if not exists notifications_user_recent on public.notifications (user_id, created_at desc);
 create index if not exists notifications_push_queue on public.notifications (created_at) where push and pushed_at is null;
 alter table public.notifications enable row level security;
-drop policy if exists "user reads own notifications" on public.notifications;
 create policy "user reads own notifications" on public.notifications
   for select to authenticated using (user_id = auth.uid());
-revoke insert, update, delete, truncate on public.notifications from anon, authenticated;
+revoke insert, update, delete on public.notifications from anon, authenticated;
 
 create table if not exists public.push_subscriptions (
   id uuid primary key default gen_random_uuid(),
@@ -74,14 +76,15 @@ create table if not exists public.push_subscriptions (
   user_agent text check (user_agent is null or char_length(user_agent) <= 300),
   created_at timestamptz not null default now(),
   last_success_at timestamptz,
-  failures smallint not null default 0
+  failures smallint not null default 0,
+  -- Set when the person turns notifications off on this device or signs out (rows are never deleted by the app).
+  revoked_at timestamptz
 );
 create index if not exists push_subscriptions_user on public.push_subscriptions (user_id);
 alter table public.push_subscriptions enable row level security;
-drop policy if exists "user reads own push subscriptions" on public.push_subscriptions;
 create policy "user reads own push subscriptions" on public.push_subscriptions
   for select to authenticated using (user_id = auth.uid());
-revoke insert, update, delete, truncate on public.push_subscriptions from anon, authenticated;
+revoke insert, update, delete on public.push_subscriptions from anon, authenticated;
 
 create table if not exists public.push_config (
   id boolean primary key default true check (id),
@@ -118,20 +121,21 @@ begin
   values (uid, p_endpoint, p_p256dh, p_auth, left(p_user_agent, 300))
   on conflict (endpoint) do update
     set user_id = excluded.user_id, p256dh = excluded.p256dh, auth = excluded.auth,
-        user_agent = excluded.user_agent, failures = 0;
-  -- Keep each person's 10 most recent devices.
-  delete from public.push_subscriptions
-  where user_id = uid
-    and id not in (select id from public.push_subscriptions where user_id = uid order by created_at desc limit 10);
+        user_agent = excluded.user_agent, failures = 0, revoked_at = null;
+  -- Only each person's 10 most recent devices stay active.
+  update public.push_subscriptions set revoked_at = now()
+  where user_id = uid and revoked_at is null
+    and id not in (select id from public.push_subscriptions where user_id = uid and revoked_at is null order by created_at desc limit 10);
 end;
 $$;
 revoke all on function public.save_push_subscription(text, text, text, text) from public, anon;
 grant execute on function public.save_push_subscription(text, text, text, text) to authenticated;
 
 create or replace function public.remove_push_subscription(p_endpoint text)
-returns void language sql security definer set search_path = public as $$
-  delete from public.push_subscriptions where endpoint = p_endpoint and user_id = auth.uid()
-$$;
+returns void language sql security definer set search_path = public as $
+  update public.push_subscriptions set revoked_at = now()
+  where endpoint = p_endpoint and user_id = auth.uid() and revoked_at is null
+$;
 revoke all on function public.remove_push_subscription(text) from public, anon;
 grant execute on function public.remove_push_subscription(text) to authenticated;
 
@@ -196,8 +200,7 @@ end;
 $$;
 revoke all on function public.notifications_kick() from public, anon, authenticated;
 
-drop trigger if exists notifications_push_kick on public.notifications;
-create trigger notifications_push_kick after insert on public.notifications
+create or replace trigger notifications_push_kick after insert on public.notifications
   referencing new table as new_rows
   for each statement execute function public.notifications_kick();
 
@@ -329,11 +332,9 @@ end;
 $$;
 revoke all on function public.notify_order_event() from public, anon, authenticated;
 
-drop trigger if exists orders_notify_new on public.orders;
 create constraint trigger orders_notify_new after insert on public.orders
   deferrable initially deferred
   for each row execute function public.notify_new_order();
 
-drop trigger if exists orders_notify on public.orders;
-create trigger orders_notify after update on public.orders
+create or replace trigger orders_notify after update on public.orders
   for each row execute function public.notify_order_event();
