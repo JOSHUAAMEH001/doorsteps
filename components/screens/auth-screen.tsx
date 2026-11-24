@@ -9,13 +9,20 @@ import { landingScreen, useApp } from "@/lib/store"
 import { createClient } from "@/lib/supabase/client"
 import { getCurrentProfile } from "@/app/actions/roles"
 
+/**
+ * New passwords need at least 8 characters (owner decision; matches Supabase → Auth → Email →
+ * "Minimum password length" and the reset-password page). Logging in is not limited by this,
+ * so people with older, shorter passwords can still sign in.
+ */
+const MIN_PASSWORD_LENGTH = 8
+
 function authErrorMessage(error: unknown, mode: "login" | "signup") {
   const { code, status } = (error ?? {}) as { code?: string; status?: number }
 
   if (code === "email_not_confirmed") {
     return "Please confirm your email address. Check your inbox for the link."
   }
-  if (code === "weak_password") return "Choose a stronger password and try again."
+  if (code === "weak_password") return `Choose a stronger password with at least ${MIN_PASSWORD_LENGTH} characters.`
   if (code === "over_email_send_rate_limit" || code === "over_request_rate_limit" || status === 429) {
     return "Too many attempts. Please wait a moment and try again."
   }
@@ -49,9 +56,14 @@ export function AuthScreen() {
       setMessage("Enter your name.")
       return
     }
-    if (!email.trim() || password.length < 6) {
+    if (!email.trim() || !password) {
       setMessageType("error")
-      setMessage("Enter a valid email and a password with at least 6 characters.")
+      setMessage("Enter your email address and password.")
+      return
+    }
+    if (mode === "signup" && password.length < MIN_PASSWORD_LENGTH) {
+      setMessageType("error")
+      setMessage(`Choose a password with at least ${MIN_PASSWORD_LENGTH} characters.`)
       return
     }
 
@@ -155,10 +167,10 @@ export function AuthScreen() {
                 type={passwordVisible ? "text" : "password"}
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
-                placeholder="At least 6 characters"
+                placeholder={mode === "signup" ? `At least ${MIN_PASSWORD_LENGTH} characters` : "Your password"}
                 autoComplete={mode === "login" ? "current-password" : "new-password"}
                 required
-                minLength={6}
+                minLength={mode === "signup" ? MIN_PASSWORD_LENGTH : undefined}
                 className="w-full rounded-2xl border border-input bg-background px-4 py-3.5 pr-12 text-sm font-medium outline-none transition focus-visible:border-brand focus-visible:ring-2 focus-visible:ring-brand/20"
               />
               <button
