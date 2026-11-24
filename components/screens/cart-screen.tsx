@@ -20,6 +20,8 @@ export function CartScreen() {
     clearCart,
     cartVendorId,
     vendors,
+    orderingOpen,
+    showOrderingNotice,
   } = useApp()
   const [confirmClear, setConfirmClear] = useState(false)
 
@@ -174,7 +176,8 @@ export function CartScreen() {
         <button
           type="button"
           // Checkout needs an account; anyone not signed in logs in first and comes back here.
-          onClick={() => navigate(isSignedIn ? "delivery" : "auth")}
+          // Before launch (ordering switched off) it explains that ordering hasn't started instead.
+          onClick={() => (orderingOpen ? navigate(isSignedIn ? "delivery" : "auth") : showOrderingNotice())}
           disabled={mixedVendors}
           className="flex w-full disabled:opacity-50 items-center justify-between rounded-2xl bg-brand px-5 py-4 text-sm font-bold text-brand-foreground transition-transform active:scale-[0.98]"
         >

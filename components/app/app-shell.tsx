@@ -37,6 +37,7 @@ import { BrandLogo } from "@/components/brand/logo"
 import { cn } from "@/lib/utils"
 import { useSignOut } from "@/components/dashboard/shell"
 import { CartConflictDialog } from "@/components/app/cart-conflict-dialog"
+import { OrderingClosedDialog } from "@/components/app/ordering-closed-dialog"
 import { hasPendingRecovery } from "@/lib/auth-recovery"
 import { InstallPrompt } from "@/components/pwa/install-prompt"
 
@@ -167,6 +168,7 @@ export function AppShell() {
 
   return (
     <div className="flex min-h-0 flex-1">
+      <OrderingClosedDialog />
       <CartConflictDialog />
       <InstallPrompt blocked={NO_INSTALL_PROMPT.has(screen)} />
       {showDesktopNav ? <DesktopSidebar /> : null}
