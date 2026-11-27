@@ -28,6 +28,7 @@ import {
 import {
   adminAssignRider,
   adminConfirmTransferPayment,
+  adminRecheckOnlinePayment,
   adminUpdateOrderStatus,
   getAdminWorkspace,
   type AdminOrder,
@@ -115,6 +116,13 @@ export function AdminDashboard() {
     await mutate()
   }
 
+  async function recheckOnline(order: AdminOrder) {
+    const result = await adminRecheckOnlinePayment(order.id)
+    if (result.error) toasts.push(result.error, "error")
+    else toasts.push(`${order.order_code}: ${result.data}`)
+    await mutate()
+  }
+
   const nav: NavItem<Section>[] = [
     { id: "overview", label: "Dashboard", icon: LayoutDashboard },
     { id: "orders", label: "Orders", icon: ClipboardList, badge: derived.pending.length + derived.unassigned.length, group: "Operations" },
@@ -164,7 +172,7 @@ export function AdminDashboard() {
           {section === "vendors" ? <VendorsSection d={derived} workspace={workspace} /> : null}
           {section === "store" ? <StoreEditor notify={(text, tone) => toasts.push(text, tone)} /> : null}
           {section === "customers" ? <CustomersSection d={derived} now={now} /> : null}
-          {section === "payments" ? <PaymentsSection d={derived} onConfirmTransfer={confirmTransfer} /> : null}
+          {section === "payments" ? <PaymentsSection d={derived} onConfirmTransfer={confirmTransfer} onRecheckOnline={recheckOnline} /> : null}
           {section === "reports" ? <ReportsSection d={derived} /> : null}
           {section === "signups" ? <RecruitmentSection notify={(text, tone) => toasts.push(text, tone)} /> : null}
           {section === "support" ? <NeedsSetup audience="admin" title="Support tickets aren't stored yet" body="Customers currently reach support outside the app. Once the support_tickets table exists, complaints will appear here with status, assignee and the linked order." items={["Open / in progress / resolved queue", "Link each complaint to an order, customer, vendor or rider", "Admin replies and resolution notes"]} /> : null}
@@ -661,7 +669,7 @@ function CustomersSection({ d, now }: { d: Derived; now: number }) {
  * Payments & reports
  * ------------------------------------------------------------------------- */
 
-function PaymentsSection({ d, onConfirmTransfer }: { d: Derived; onConfirmTransfer: (o: AdminOrder) => Promise<void> }) {
+function PaymentsSection({ d, onConfirmTransfer, onRecheckOnline }: { d: Derived; onConfirmTransfer: (o: AdminOrder) => Promise<void>; onRecheckOnline: (o: AdminOrder) => Promise<void> }) {
   const [confirming, setConfirming] = useState<string | null>(null)
   const [method, setMethod] = useState<"all" | "cash" | "transfer" | "card">("all")
   const [query, setQuery] = useState("")
@@ -705,6 +713,15 @@ function PaymentsSection({ d, onConfirmTransfer }: { d: Derived; onConfirmTransf
                           className="inline-flex min-h-9 items-center rounded-xl bg-brand px-3 text-xs font-bold text-white disabled:opacity-60"
                         >
                           {confirming === o.id ? "Confirming…" : "Confirm payment"}
+                        </button>
+                      ) : o.payment_method === "card" && o.payment_status !== "paid" && o.status !== "cancelled" ? (
+                        <button
+                          type="button"
+                          disabled={confirming === o.id}
+                          onClick={async () => { setConfirming(o.id); await onRecheckOnline(o); setConfirming(null) }}
+                          className="inline-flex min-h-9 items-center rounded-xl border border-border px-3 text-xs font-bold text-foreground disabled:opacity-60"
+                        >
+                          {confirming === o.id ? "Checking…" : "Check with Squad"}
                         </button>
                       ) : <span className="text-xs text-muted-foreground">—</span>}
                     </td>
