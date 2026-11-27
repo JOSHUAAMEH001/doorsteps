@@ -214,9 +214,9 @@ interface AppState {
 
 const AppContext = createContext<AppState | null>(null)
 
-export function AppProvider({ children, initialScreen = "splash", initialVendors = [] }: { children: ReactNode; initialScreen?: Screen; initialVendors?: Awaited<ReturnType<typeof getVendors>> }) {
+export function AppProvider({ children, initialScreen = "splash", initialParams = {}, initialVendors = [] }: { children: ReactNode; initialScreen?: Screen; initialParams?: NavParams; initialVendors?: Awaited<ReturnType<typeof getVendors>> }) {
   const [screen, setScreen] = useState<Screen>(initialScreen)
-  const [params, setParams] = useState<NavParams>({})
+  const [params, setParams] = useState<NavParams>(initialParams)
   const [historyIndex, setHistoryIndex] = useState(0)
   const [cart, setCart] = useState<CartLine[]>([])
   const [pendingCartReplace, setPendingCartReplace] = useState<PendingCartReplace | null>(null)

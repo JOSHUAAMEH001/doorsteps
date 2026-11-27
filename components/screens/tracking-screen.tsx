@@ -1,9 +1,11 @@
 "use client"
 
 import dynamic from "next/dynamic"
+import { useState } from "react"
 import useSWR from "swr"
 import { Bike, CircleX, Headphones, MapPin, PackageCheck, RefreshCw } from "lucide-react"
 import { getCustomerOrderForTracking, type CustomerTracking } from "@/app/actions/tracking"
+import { startOnlinePayment } from "@/app/actions/payments"
 import { useApp } from "@/lib/store"
 import { LoadingState, ScreenHeader } from "@/components/app/ui"
 import type { OrderStatus } from "@/lib/order-status"
@@ -104,6 +106,10 @@ function TrackingDetails({ order, onSupport }: { order: CustomerTracking; onSupp
           ) : null}
         </div>
 
+        {order.paymentMethod === "card" && order.paymentStatus !== "paid" && !cancelled ? (
+          <PayNowCard orderCode={order.orderCode} />
+        ) : null}
+
         {live ? (
           <div className="flex items-center gap-3 rounded-3xl border border-border bg-card p-4 shadow-sm">
             <span className="flex size-12 shrink-0 items-center justify-center rounded-full bg-brand-soft text-brand"><Bike aria-hidden="true" className="size-6" /></span>
@@ -181,6 +187,38 @@ function Message({ title, body, action }: { title: string; body: string; action:
       <p className="text-base font-bold text-foreground">{title}</p>
       <p className="mt-1 text-sm text-muted-foreground">{body}</p>
       <button type="button" onClick={action.onClick} className="mt-4 min-h-11 rounded-2xl bg-brand px-5 text-sm font-bold text-brand-foreground">{action.label}</button>
+    </div>
+  )
+}
+
+/** Online orders that were never paid: the restaurant can't see them until payment is done. */
+function PayNowCard({ orderCode }: { orderCode: string }) {
+  const [busy, setBusy] = useState(false)
+  const [message, setMessage] = useState("")
+  async function payNow() {
+    if (busy) return
+    setBusy(true)
+    setMessage("")
+    try {
+      const started = await startOnlinePayment(orderCode)
+      if (started.ok) {
+        window.location.assign(started.checkoutUrl)
+        return
+      }
+      setMessage(started.message)
+    } catch {
+      setMessage("We couldn't reach the payment service. Check your connection and try again.")
+    }
+    setBusy(false)
+  }
+  return (
+    <div className="rounded-3xl border border-warning/30 bg-warning-soft p-4 text-sm">
+      <p className="font-bold text-foreground">Payment not completed</p>
+      <p className="mt-1 text-xs text-muted-foreground">The restaurant starts on your order once it&apos;s paid. If you already paid, it updates here within a few minutes; don&apos;t pay twice.</p>
+      {message ? <p role="alert" className="mt-2 text-xs font-medium text-destructive">{message}</p> : null}
+      <button type="button" onClick={payNow} disabled={busy} className="mt-3 flex min-h-11 w-full items-center justify-center rounded-2xl bg-brand px-4 text-sm font-bold text-brand-foreground disabled:opacity-60">
+        {busy ? "Opening secure payment…" : "Pay now"}
+      </button>
     </div>
   )
 }

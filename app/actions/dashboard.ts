@@ -1,6 +1,7 @@
 "use server"
 
 import { createClient } from "@/lib/supabase/server"
+import { confirmSquadPayment } from "@/lib/payments/squad-confirm"
 import type { Role } from "@/app/actions/roles"
 import { ADMIN_TRANSITIONS, isOrderStatus, type OrderStatus } from "@/lib/order-status"
 
@@ -516,5 +517,36 @@ export async function adminConfirmTransferPayment(orderId: string): Promise<Acti
     return data ? { data: null, error: null } : { data: null, error: "This order changed. Refreshing…" }
   } catch (error) {
     return fail(null, error, "confirm payment crashed")
+  }
+}
+
+/**
+ * Admin: ask Squad again about an unpaid online order (e.g. if a webhook was missed).
+ * Goes through the same verified path as the webhook; it never marks paid without Squad's confirmation.
+ */
+export async function adminRecheckOnlinePayment(orderId: string): Promise<ActionResult<string>> {
+  const caller = await requireRole(["admin"])
+  if ("error" in caller) return { data: "", error: caller.error }
+  try {
+    const { data: order, error } = await caller.supabase
+      .from("orders")
+      .select("id, order_code, payment_method, payment_reference")
+      .eq("id", orderId)
+      .maybeSingle()
+    if (error) return fail("", error, "recheck payment lookup failed")
+    if (!order) return { data: "", error: "Order not found." }
+    if (order.payment_method !== "card") return { data: "", error: "Only online (Squad) orders can be checked with Squad." }
+    if (!order.payment_reference) return { data: "", error: "The customer never opened the payment page for this order." }
+    const outcome = await confirmSquadPayment(order.payment_reference)
+    switch (outcome.state) {
+      case "paid": return { data: outcome.alreadyPaid ? "Already paid." : "Payment confirmed by Squad.", error: null }
+      case "pending": return { data: "Squad says the payment is still pending.", error: null }
+      case "not_paid": return { data: `Not paid (Squad: ${outcome.squadStatus}).`, error: null }
+      case "needs_review": return { data: "", error: `Squad reports a payment that doesn't match this order (${outcome.detail}). Check it in the Squad dashboard.` }
+      case "unknown_reference": return { data: "", error: "This payment reference wasn't found." }
+      default: return { data: "", error: "Couldn't reach Squad right now. Try again shortly." }
+    }
+  } catch (error) {
+    return fail("", error, "recheck payment crashed")
   }
 }

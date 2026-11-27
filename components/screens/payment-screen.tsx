@@ -1,8 +1,10 @@
 "use client"
 
 import { Banknote, Building2, Check, CreditCard, LoaderCircle } from "lucide-react"
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
+import useSWR from "swr"
 import { submitCheckout } from "@/app/actions/order"
+import { getOnlinePaymentStatus, startOnlinePayment } from "@/app/actions/payments"
 import { ScreenHeader, PrimaryButton } from "@/components/app/ui"
 import { formatNaira } from "@/lib/data"
 import { useApp, type PaymentMethod } from "@/lib/store"
@@ -10,22 +12,20 @@ import { cn } from "@/lib/utils"
 import { TRANSFER_ACCOUNT } from "@/lib/payment-details"
 import { TransferDetails } from "@/components/app/transfer-details"
 
-/**
- * Card payments stay off until Paystack is integrated with server-side verification.
- * DOORS must never collect card numbers or CVVs on its own form.
- */
-const CARD_PAYMENTS_ENABLED = false
+type MethodOption = { id: PaymentMethod; label: string; desc: string; icon: typeof Banknote }
 
-const methods: {
-  id: PaymentMethod
-  label: string
-  desc: string
-  icon: typeof Banknote
-}[] = [
-  { id: "cod", label: "Cash on Delivery", desc: "Pay the rider when it arrives", icon: Banknote },
-  ...(TRANSFER_ACCOUNT ? [{ id: "transfer" as const, label: "Bank Transfer", desc: "Transfer to our account", icon: Building2 }] : []),
-  ...(CARD_PAYMENTS_ENABLED ? [{ id: "card" as const, label: "Debit Card", desc: "Pay securely with your card", icon: CreditCard }] : []),
-]
+/**
+ * "Pay online" (stored as payment_method "card") opens Squad by GTCO's hosted payment page:
+ * card, bank transfer or USSD. DOORS never collects card numbers or CVVs on its own form.
+ * It only appears when the server has a Squad key and can record verified payments.
+ */
+function paymentMethods(onlineEnabled: boolean): MethodOption[] {
+  return [
+    ...(onlineEnabled ? [{ id: "card" as const, label: "Pay online", desc: "Card, bank transfer or USSD · secured by Squad (GTCO)", icon: CreditCard }] : []),
+    { id: "cod", label: "Cash on Delivery", desc: "Pay the rider when it arrives", icon: Banknote },
+    ...(TRANSFER_ACCOUNT ? [{ id: "transfer" as const, label: "Bank Transfer", desc: "Transfer to our account", icon: Building2 }] : []),
+  ]
+}
 
 function newRequestId() {
   return typeof crypto !== "undefined" && "randomUUID" in crypto
@@ -48,15 +48,19 @@ export function PaymentScreen() {
     userName,
     vendors,
   } = useApp()
+  const { data: online, isLoading: onlineLoading } = useSWR("online-payment-status", () => getOnlinePaymentStatus(), { revalidateOnFocus: false })
+  const methods = useMemo(() => paymentMethods(Boolean(online?.enabled)), [online?.enabled])
   const [error, setError] = useState("")
   const [submitting, setSubmitting] = useState(false)
   // One id per checkout attempt: retries and double taps return the same order, never a second one.
   const requestId = useRef(newRequestId())
 
-  // If a hidden method was selected earlier, fall back to cash on delivery.
+  // If a hidden method was selected earlier, fall back to cash on delivery
+  // (only once we know whether online payment is available).
   useEffect(() => {
+    if (onlineLoading) return
     if (!methods.some((m) => m.id === paymentMethod)) setPaymentMethod("cod")
-  }, [paymentMethod, setPaymentMethod])
+  }, [methods, onlineLoading, paymentMethod, setPaymentMethod])
 
   const total = cartSubtotal + deliveryFee + serviceFee
 
@@ -108,6 +112,12 @@ export function PaymentScreen() {
         </section>
 
         {paymentMethod === "transfer" && TRANSFER_ACCOUNT ? <TransferDetails /> : null}
+        {paymentMethod === "card" ? (
+          <p className="rounded-2xl border border-border bg-card px-4 py-3 text-xs text-muted-foreground">
+            You&apos;ll be taken to Squad&apos;s secure payment page to pay by card, bank transfer or USSD, then brought back here.
+            {online?.sandbox ? <span className="mt-1 block font-semibold text-warning-strong">Test mode: no real money is charged.</span> : null}
+          </p>
+        ) : null}
 
         {/* Order summary */}
         <section className="space-y-2.5 rounded-3xl bg-secondary p-4">
@@ -192,6 +202,26 @@ export function PaymentScreen() {
               setError(result.message || "We couldn't place your order. Please try again. Your cart has been kept.")
               return
             }
+            if (paymentMethod === "card") {
+              // The order is saved unpaid; the restaurant only sees it once Squad confirms payment.
+              let started: Awaited<ReturnType<typeof startOnlinePayment>>
+              try {
+                started = await startOnlinePayment(result.orderCode)
+              } catch {
+                started = { ok: false, message: "We couldn't reach the payment service. Check your connection and try again." }
+              }
+              if (!started.ok) {
+                // Keep the same request id: trying again reuses this order instead of creating another.
+                setSubmitting(false)
+                setError(`${started.message} Your order ${result.orderCode} is saved and unpaid.`)
+                return
+              }
+              requestId.current = newRequestId()
+              placeOrder(result.orderCode)
+              clearCart()
+              window.location.assign(started.checkoutUrl)
+              return
+            }
             requestId.current = newRequestId()
             placeOrder(result.orderCode)
             clearCart()
@@ -200,8 +230,10 @@ export function PaymentScreen() {
           }}
         >
           {submitting
-            ? <><LoaderCircle aria-hidden="true" className="h-4 w-4 animate-spin" />Placing your order…</>
-            : paymentMethod === "cod"
+            ? <><LoaderCircle aria-hidden="true" className="h-4 w-4 animate-spin" />{paymentMethod === "card" ? "Opening secure payment…" : "Placing your order…"}</>
+            : paymentMethod === "card"
+              ? `Pay ${formatNaira(total)} online`
+              : paymentMethod === "cod"
               ? `Place order • ${formatNaira(total)}`
               : `Pay ${formatNaira(total)}`}
         </PrimaryButton>

@@ -104,7 +104,7 @@ export function StatusBadge({ status, audience = "admin" }: { status: string; au
 
 export function PaymentBadge({ method, status }: { method: string | null; status: string | null }) {
   const tone: Tone = status === "paid" ? "success" : status === "failed" ? "danger" : status === "refunded" ? "neutral" : "warning"
-  const label = method === "cash" ? "Cash on delivery" : method === "transfer" ? "Transfer" : method === "card" ? "Card" : method ?? "—"
+  const label = method === "cash" ? "Cash on delivery" : method === "transfer" ? "Transfer" : method === "card" ? "Online (Squad)" : method ?? "—"
   return (
     <span className="inline-flex flex-col gap-1">
       <span className="text-xs font-semibold text-foreground">{label}</span>

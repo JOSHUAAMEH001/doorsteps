@@ -8,9 +8,11 @@ type Vendors = Awaited<ReturnType<typeof getVendors>>
 export default async function Page({
   searchParams,
 }: {
-  searchParams: Promise<{ auth?: string }>
+  searchParams: Promise<{ auth?: string; track?: string }>
 }) {
-  const { auth } = await searchParams
+  const { auth, track } = await searchParams
+  // "/?track=ORDER" opens that order's tracking screen (used after online payment).
+  const trackCode = typeof track === "string" && /^[A-Za-z0-9-]{3,40}$/.test(track) ? track : null
 
   let initialVendors: Vendors = []
   try {
@@ -21,7 +23,11 @@ export default async function Page({
   }
 
   return (
-    <AppProvider initialVendors={initialVendors} initialScreen={auth === "login" ? "auth" : "splash"}>
+    <AppProvider
+      initialVendors={initialVendors}
+      initialScreen={trackCode ? "tracking" : auth === "login" ? "auth" : "splash"}
+      initialParams={trackCode ? { orderCode: trackCode } : {}}
+    >
       <PhoneFrame>
         <AppShell />
       </PhoneFrame>

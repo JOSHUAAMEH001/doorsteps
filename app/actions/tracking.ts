@@ -13,6 +13,8 @@ export type CustomerTracking = {
   dropoff: { lat: number; lng: number } | null
   deliveredAt: string | null
   total: number | null
+  paymentMethod: string | null
+  paymentStatus: string | null
   items: { name: string; quantity: number }[]
 }
 
@@ -31,7 +33,7 @@ export async function getCustomerOrderForTracking(orderCode: string): Promise<Cu
 
   const { data: order, error } = await supabase
     .from("orders")
-    .select("order_code, rider_id, status, dropoff_location, dropoff_lat, dropoff_lng, delivered_at, total, vendors(name), order_items(item_name, quantity)")
+    .select("order_code, rider_id, status, dropoff_location, dropoff_lat, dropoff_lng, delivered_at, total, payment_method, payment_status, vendors(name), order_items(item_name, quantity)")
     .eq("user_id", user.id)
     .eq("order_code", normalizedOrderCode)
     .maybeSingle()
@@ -67,6 +69,8 @@ export async function getCustomerOrderForTracking(orderCode: string): Promise<Cu
       dropoffLocation: order.dropoff_location?.trim() || null,
       dropoff: typeof lat === "number" && typeof lng === "number" ? { lat, lng } : null,
       deliveredAt: order.delivered_at,
+      paymentMethod: order.payment_method ?? null,
+      paymentStatus: order.payment_status ?? null,
       total: typeof order.total === "number" ? order.total : order.total == null ? null : Number(order.total),
       items: (order.order_items ?? []).map((item: { item_name: string; quantity: number }) => ({ name: item.item_name, quantity: item.quantity })),
     },
